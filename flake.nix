@@ -15,6 +15,7 @@
       environment.systemPackages =
         [ pkgs.vim
 	  pkgs.lima
+          pkgs.git
           pkgs.gh
         ];
 
@@ -33,6 +34,16 @@
         rebuild = "sudo darwin-rebuild switch --flake ~/nix#m5-macpro";
         flake = "vim ~/nix/flake.nix";
       };
+
+      environment.etc."gitconfig".text = ''
+        [user]
+	  name = tysonxor
+	  email = 12140944+tysonxor@users.noreply.github.com
+        [init]
+	  defaultBranch = main
+      ''; 
+
+      environment.variables.GIT_CONFIG_SYSTEM = "/etc/gitconfig";
 
       # Necessary for using flakes on this system.
       nix.settings.experimental-features = "nix-command flakes";
