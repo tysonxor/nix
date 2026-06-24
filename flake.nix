@@ -6,73 +6,27 @@
     nix-darwin.url = "github:nix-darwin/nix-darwin/master";
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager";
-    home-manager.inputs.nixpkgs.follows = "nixpkgs"; 
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
+    # mac-app-util.url = "github:hraban/mac-app-util";   # TEMP disabled: common-lisp.net 503. Re-enable when host recovers.
   };
 
   outputs = inputs@{ self, nix-darwin, nixpkgs, home-manager, ... }:
-  let
-    configuration = { pkgs, ... }: {
-      # List packages installed in system profile. To search by name, run:
-      # $ nix-env -qaP | grep wget
-      environment.systemPackages =
-        [ pkgs.vim
-	  pkgs.lima
-          pkgs.git
-          pkgs.gh
-        ];
-
-      system.primaryUser = "tyson";
-
-      system.defaults = {
-        dock.autohide = false;
-        dock.tilesize = 32;
-        dock.largesize = 64;
-        dock.magnification = true;
-        NSGlobalDomain.KeyRepeat = 1;
-        NSGlobalDomain.InitialKeyRepeat = 10;
-      };
-
-      users.users.tyson = {
-        name = "tyson";
-        home = "/Users/tyson";
-      };
-
-      environment.shellAliases = {
-        rebuild = "sudo darwin-rebuild switch --flake ~/nix#m5-macpro";
-        flake = "vim ~/nix/flake.nix";
-      };
-
-      # Necessary for using flakes on this system.
-      nix.settings.experimental-features = "nix-command flakes";
-
-      # Enable alternative shell support in nix-darwin.
-      # programs.fish.enable = true;
-
-      # Set Git commit hash for darwin-version.
-      system.configurationRevision = self.rev or self.dirtyRev or null;
-
-      # Used for backwards compatibility, please read the changelog before changing.
-      # $ darwin-rebuild changelog
-      system.stateVersion = 6;
-
-      # The platform the configuration will be used on.
-      nixpkgs.hostPlatform = "aarch64-darwin";
-    };
-  in
   {
-    # Build darwin flake using:
-    # $ darwin-rebuild build --flake .#m5-macpro
-    darwinConfigurations."m5-macpro" = nix-darwin.lib.darwinSystem {
-      modules = [ 
-        configuration
+    darwinConfigurations."mac" = nix-darwin.lib.darwinSystem {
+      specialArgs = { inherit self; };
+      modules = [
+        ./system.nix
+        # mac-app-util.darwinModules.default                # TEMP disabled with input above
         home-manager.darwinModules.home-manager
         {
-           home-manager.useGlobalPkgs = true;
-           home-manager.useUserPackages = true;
-           home-manager.users.tyson = import ./home.nix;
-        } 
+          home-manager.useGlobalPkgs = true;
+          home-manager.useUserPackages = true;
+          home-manager.users.tyson = import ./home.nix;
+          # home-manager.sharedModules = [
+          #   mac-app-util.homeManagerModules.default        # TEMP disabled with input above
+          # ];
+        }
       ];
     };
   };
 }
-
