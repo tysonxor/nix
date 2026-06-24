@@ -1,0 +1,20 @@
+# nix/lima/guest.yaml
+# Generic dev VM template. Instance identity (personal vs client)
+# comes later from the home-manager config built INSIDE the VM,
+# not from this file. Start with: limactl start --name=<name> ./guest.yaml
+
+vmType: "vz"            # Apple Virtualization.framework (default on macOS, explicit here)
+
+cpus: 4
+memory: "8GiB"
+disk: "60GiB"
+
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
+    arch: "aarch64"
+
+# --- SECURITY BOUNDARY ---
+mounts: []              # mount NOTHING from the host. No home leakage.
+
+ssh:
+  forwardAgent: false   # do not forward host SSH agent into the guest

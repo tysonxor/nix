@@ -1,0 +1,51 @@
+{ config, pkgs, ... }:
+{
+  home.username = "tyson";
+  home.homeDirectory = "/home/tyson";       # Linux guest path, NOT /Users
+  home.stateVersion = "24.05";              # match host; set once
+
+  # --- shell ---
+  programs.zsh = {
+    enable = true;
+    enableCompletion = true;
+    autosuggestion.enable = true;
+    syntaxHighlighting.enable = true;
+  };
+
+  # --- git (identity comes from the per-instance file; this is shared config) ---
+  programs.git = {
+    enable = true;
+    settings = {
+      init.defaultBranch = "main";
+      # user.name / user.email intentionally NOT set here — set per-instance
+      # --- TODO: paste your full git aliases here when you have them, e.g.:
+      # alias.co = "checkout";
+      # alias.st = "status";
+    };
+  };
+
+  # --- Neovim binary + LazyVim's native toolchain ---
+  # NOTE: plain package install, NOT programs.neovim. LazyVim/lazy.nvim
+  # manages plugins itself; Nix only provides the binary + build deps.
+  home.packages = with pkgs; [
+    neovim
+    ripgrep
+    fd
+    fzf
+    lazygit
+    gcc           # C compiler for tree-sitter parser compilation
+    gnumake
+    nodejs        # some LSPs / Copilot
+    git
+    curl
+    nerd-fonts.jetbrains-mono
+
+    # --- multiplexer ---
+    zellij
+  ];
+
+  # --- Zellij: installed above; config added later (Phase 7) ---
+  # We deliberately don't enable shell-integration auto-start; you start it deliberately.
+
+  programs.home-manager.enable = true;       # let HM manage itself in the guest
+}
