@@ -4,7 +4,7 @@
 
   programs.git.settings = {
     user.name = "tyson-crafted";
-    user.email = "tyson@crafted.solutions";
+    user.email = "281733437+tyson-crafted@users.noreply.github.com";
   };
 
   programs.ssh = {

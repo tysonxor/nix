@@ -1,76 +1,43 @@
 #!/usr/bin/env bash
 #
-# bootstrap.sh — fresh-machine setup for tyson's nix-darwin config
-#
-# Run this AFTER installing Nix. It clones the config (if needed) and
-# does the first darwin-rebuild. The auth steps at the end are manual
-# by design — they involve secrets that never live in the repo.
-#
-# Usage:
-#   1. Install Nix:
-#        curl --proto '=https' --tlsv1.2 -sSf -L https://nixos.org/nix/install | sh
-#      then open a NEW shell so nix is on PATH.
-#   2. Run this script:
-#        curl -fsSL https://raw.githubusercontent.com/tyson/nix/main/bootstrap.sh | bash
-#      (or clone first and run ./bootstrap.sh)
+# bootstrap.sh — fresh-machine setup for tyson's nix-darwin config.
+# Run AFTER installing Nix (in a new shell so nix is on PATH).
 
 set -euo pipefail
 
 REPO_URL="https://github.com/tysonxor/nix"
 REPO_DIR="$HOME/nix"
-FLAKE_TARGET="new-machine-name"   # the darwinConfigurations.<name> in flake.nix
+FLAKE_TARGET="machost"
 
-echo "==> Checking for Nix..."
-if ! command -v nix >/dev/null 2>&1; then
-  echo "ERROR: nix not found on PATH."
-  echo "Install Nix first, then open a new shell and re-run this script."
-  exit 1
-fi
-
-# Make sure the experimental features are available for this session,
-# in case the daemon config doesn't have them yet (fresh install).
 NIX_FLAGS=(--extra-experimental-features "nix-command flakes")
 
-echo "==> Cloning config repo (if not already present)..."
+command -v nix >/dev/null 2>&1 || {
+  echo "ERROR: nix not found. Install Nix, open a new shell, and re-run."
+  exit 1
+}
+
 if [ ! -d "$REPO_DIR/.git" ]; then
-  # Use nix-provided git so we never trigger the macOS Xcode CLT prompt,
-  # and don't depend on a system git existing yet.
+  echo "==> Cloning config..."
   nix "${NIX_FLAGS[@]}" run nixpkgs#git -- clone "$REPO_URL" "$REPO_DIR"
-else
-  echo "    $REPO_DIR already exists, skipping clone."
 fi
 
-echo "==> Running first darwin-rebuild (this installs everything)..."
-echo "    You'll be prompted for your sudo password."
+echo "==> Running darwin-rebuild (you'll be prompted for sudo)..."
 sudo nix "${NIX_FLAGS[@]}" run nix-darwin/master#darwin-rebuild -- \
   switch --flake "$REPO_DIR#$FLAKE_TARGET"
 
-cat <<'EOF'
+echo "==> Setting up SSH key for GitHub..."
+if [ ! -f "$HOME/.ssh/id_ed25519" ]; then
+  ssh-keygen -t ed25519 -C "tyson@machost" -f "$HOME/.ssh/id_ed25519"
+fi
 
-============================================================
-  System config is installed. Two manual steps remain
-  (these involve secrets, so they're not automated):
-============================================================
+pbcopy < "$HOME/.ssh/id_ed25519.pub"
+echo ""
+echo "  Public key copied to clipboard."
+echo "  Paste it at: https://github.com/settings/keys  (New SSH key)"
+echo ""
+read -r -p "  Press Enter once you've added it on GitHub..."
 
-  1. Authenticate with GitHub and generate an SSH key:
+echo "==> Testing GitHub auth..."
+ssh -T git@github.com || true
 
-       gh auth login
-
-     Choose:  GitHub.com -> SSH -> "Generate a new SSH key"
-     Give it a passphrase when asked. gh uploads the public
-     key to GitHub automatically.
-
-  2. Cache the SSH passphrase in the macOS Keychain so you
-     aren't prompted on every push:
-
-       ssh-add --apple-use-keychain ~/.ssh/id_ed25519
-
-     (Check the key name with `ls ~/.ssh` if it differs.)
-
-  Then verify everything works:
-
-       ssh -T git@github.com        # should greet you by name
-       cd ~/nix && git push         # should push with no prompt
-
-============================================================
-EOF
+echo "==> Done."
