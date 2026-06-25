@@ -2,6 +2,9 @@
 {
   imports = [ ../guests.nix ];
 
+  # AWS tooling — crafted-specific, not in the shared baseline
+  home.packages = [ pkgs.awscli2 ];
+
   programs.git.settings = {
     user.name = "tyson-crafted";
     user.email = "281733437+tyson-crafted@users.noreply.github.com";
