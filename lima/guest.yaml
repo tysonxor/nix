@@ -18,3 +18,7 @@ mounts: []              # mount NOTHING from the host. No home leakage.
 
 ssh:
   forwardAgent: false   # do not forward host SSH agent into the guest
+
+containerd:
+  system: false
+  user: false

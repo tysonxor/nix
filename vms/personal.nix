@@ -1,12 +1,13 @@
 { config, pkgs, ... }:
 {
-  imports = [ ./common.nix ];
+  imports = [ ../guests.nix ];
 
   programs.git.settings = {
-    user.name = "tyson-crafted";
-    user.email = "281733437+tyson-crafted@users.noreply.github.com";
+    user.name = "tysonxor";
+    user.email = "12140944+tysonxor@users.noreply.github.com";
   };
 
+  # SSH identity for personal GitHub — key is generated INSIDE this VM
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;

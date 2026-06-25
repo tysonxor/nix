@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# vm — manage Lima dev guests
+set -euo pipefail
+
+REPO="$HOME/nix"
+TEMPLATE="$REPO/lima/guest.yaml"
+SCRIPT_URL="https://raw.githubusercontent.com/tysonxor/nix/main/bootstrap-guest.sh"
+
+cmd="${1:-help}"
+name="${2:-}"
+
+need_name() { [ -n "$name" ] || { echo "usage: vm $cmd <name>"; exit 1; }; }
+
+case "$cmd" in
+  create)
+    need_name
+    [ -f "$REPO/vms/$name.nix" ] || { echo "ERROR: create vms/$name.nix first, then push."; exit 1; }
+    limactl start --name="$name" "$TEMPLATE" --tty=false
+    limactl shell "$name" bash -c "curl -fsSL $SCRIPT_URL | bash -s -- $name"
+    ;;
+  destroy)
+    need_name
+    limactl stop "$name" && limactl delete "$name"
+    ;;
+  shell)
+    need_name
+    limactl shell "$name"
+    ;;
+  rebuild)
+    sudo darwin-rebuild switch --flake "$REPO#mac"
+    ;;
+  list)
+    limactl list
+    ;;
+  *)
+    cat <<EOF
+vm — manage dev guests
+
+  vm create <name>    create + bootstrap a guest
+  vm destroy <name>   stop + delete a guest
+  vm shell <name>     shell into a guest
+  vm list             list guests
+  vm rebuild          rebuild the Mac host config
+EOF
+    ;;
+esac

@@ -3,6 +3,9 @@
   home.username = "tyson";
   home.homeDirectory = "/Users/tyson";
   home.stateVersion = "24.05";  # set once, don't bump casually
+  home.packages= [
+    (pkgs.writeShellScriptBin "vm" (builtins.readFile ./vm))
+  ];
 
   programs.git = {
     enable = true;

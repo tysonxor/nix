@@ -11,6 +11,31 @@
   };
 
   outputs = inputs@{ self, nix-darwin, nixpkgs, home-manager, ... }:
+  let
+    guestPkgs = nixpkgs.legacyPackages."aarch64-linux";
+
+    # every vms/*.nix is a guest identity / target
+    guestFiles = builtins.attrNames (
+      nixpkgs.lib.filterAttrs
+        (name: type:
+          type == "regular" && nixpkgs.lib.hasSuffix ".nix" name)
+        (builtins.readDir ./vms)
+    );
+
+    mkGuest = file:
+      home-manager.lib.homeManagerConfiguration {
+        pkgs = guestPkgs;
+        modules = [ (./vms + "/${file}") ];
+      };
+
+    # personal.nix -> "personal", crafted.nix -> "crafted"
+    guestConfigs = nixpkgs.lib.listToAttrs (
+      map (file: {
+        name = nixpkgs.lib.removeSuffix ".nix" file;
+        value = mkGuest file;
+      }) guestFiles
+    );
+  in
   {
     darwinConfigurations."mac" = nix-darwin.lib.darwinSystem {
       specialArgs = { inherit self; };
@@ -29,14 +54,6 @@
       ];
     };
 
-    homeConfigurations."personal" = home-manager.lib.homeManagerConfiguration {
-      pkgs = nixpkgs.legacyPackages."aarch64-linux";
-      modules = [ ./guests/personal.nix ];
-    };
-
-    homeConfigurations."crafted" = home-manager.lib.homeManagerConfiguration {
-      pkgs = nixpkgs.legacyPackages."aarch64-linux";
-      modules = [ ./guests/crafted.nix ];
-    };
+    homeConfigurations = guestConfigs;
   };
 }

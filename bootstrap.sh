@@ -7,7 +7,7 @@ set -euo pipefail
 
 REPO_URL="https://github.com/tysonxor/nix"
 REPO_DIR="$HOME/nix"
-FLAKE_TARGET="machost"
+FLAKE_TARGET="mac"
 
 NIX_FLAGS=(--extra-experimental-features "nix-command flakes")
 
@@ -27,7 +27,7 @@ sudo nix "${NIX_FLAGS[@]}" run nix-darwin/master#darwin-rebuild -- \
 
 echo "==> Setting up SSH key for GitHub..."
 if [ ! -f "$HOME/.ssh/id_ed25519" ]; then
-  ssh-keygen -t ed25519 -C "tyson@machost" -f "$HOME/.ssh/id_ed25519"
+  ssh-keygen -t ed25519 -C "tyson@mac" -f "$HOME/.ssh/id_ed25519"
 fi
 
 pbcopy < "$HOME/.ssh/id_ed25519.pub"
