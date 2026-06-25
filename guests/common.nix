@@ -1,7 +1,7 @@
 { config, pkgs, ... }:
 {
   home.username = "tyson";
-  home.homeDirectory = "/home/tyson";       # Linux guest path, NOT /Users
+  home.homeDirectory = "/home/tyson.guest"; # Linux guest path (Lima default), NOT /Users
   home.stateVersion = "24.05";              # match host; set once
 
   # --- shell ---
