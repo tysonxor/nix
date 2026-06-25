@@ -22,3 +22,38 @@ ssh:
 containerd:
   system: false
   user: false
+
+provision:
+  - mode: system
+    script: |
+      #!/usr/bin/env bash
+      set -eux
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -qq
+      apt-get install -y -qq \
+        podman uidmap crun fuse-overlayfs slirp4netns passt \
+        netavark aardvark-dns catatonit podman-compose
+      printf '%s:100000:65536\n' "${LIMA_CIDATA_USER}" > /etc/subuid
+      printf '%s:100000:65536\n' "${LIMA_CIDATA_USER}" > /etc/subgid
+      chmod u+s /usr/bin/newuidmap /usr/bin/newgidmap
+      loginctl enable-linger "${LIMA_CIDATA_USER}"
+  - mode: user
+    script: |
+      #!/usr/bin/env bash
+      set -eux
+      mkdir -p "${HOME}/.config/containers"
+      cat > "${HOME}/.config/containers/containers.conf" <<'EOF'
+      [engine]
+      compose_providers = ["/usr/bin/podman-compose"]
+      compose_warning_logs = false
+      EOF
+      podman system migrate || true
+      podman unshare cat /proc/self/uid_map
+
+probes:
+  - description: "rootless podman works"
+    script: |
+      #!/usr/bin/env bash
+      set -eux
+      timeout 90 podman run --rm hello-world >/dev/null
+    hint: "rootless podman could not start a container; check /etc/subuid and newuidmap setuid"
