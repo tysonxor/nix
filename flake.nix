@@ -33,5 +33,10 @@
       pkgs = nixpkgs.legacyPackages."aarch64-linux";
       modules = [ ./guests/personal.nix ];
     };
+
+    homeConfigurations."crafted" = home-manager.lib.homeManagerConfiguration {
+      pkgs = nixpkgs.legacyPackages."aarch64-linux";
+      modules = [ ./guests/crafted.nix ];
+    };
   };
 }
