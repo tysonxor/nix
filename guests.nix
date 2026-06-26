@@ -19,6 +19,11 @@
     enableZshIntegration = true;
   };
 
+  programs.starship = {
+    enable = true;
+    enableZshIntegration = true;
+  };
+
   # --- git (identity comes from the per-instance file; this is shared config) ---
   programs.git = {
     enable = true;
