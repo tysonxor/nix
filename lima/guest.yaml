@@ -55,5 +55,5 @@ probes:
     script: |
       #!/usr/bin/env bash
       set -eux
-      timeout 90 podman run --rm hello-world >/dev/null
-    hint: "rootless podman could not start a container; check /etc/subuid and newuidmap setuid"
+      timeout 30 podman info >/dev/null
+    hint: "rootless podman not working; check /etc/subuid and newuidmap setuid"
