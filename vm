@@ -24,7 +24,7 @@ case "$cmd" in
     ;;
   shell)
     need_name
-    limactl shell "$name" zsh
+    limactl shell "$name" /home/tyson.guest/.nix-profile/bin/zsh
     ;;
   rebuild)
     sudo darwin-rebuild switch --flake "$REPO#mac"
