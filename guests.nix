@@ -3,6 +3,7 @@
   home.username = "tyson";
   home.homeDirectory = "/home/tyson.guest"; # Linux guest path (Lima default), NOT /Users
   home.stateVersion = "24.05";              # match host; set once
+  home.sessionVariables.DOCKER_HOST = "unix:///run/user/501/podman/podman.sock";
 
   # --- shell ---
   programs.zsh = {
@@ -39,8 +40,7 @@
     git
     curl
     nerd-fonts.jetbrains-mono
-
-    # --- multiplexer ---
+    docker-compose
     zellij
   ];
 

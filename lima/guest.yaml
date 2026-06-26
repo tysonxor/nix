@@ -49,6 +49,7 @@ provision:
       EOF
       podman system migrate || true
       podman unshare cat /proc/self/uid_map
+      systemctl --user enable --now podman.socket
 
 probes:
   - description: "rootless podman works"
