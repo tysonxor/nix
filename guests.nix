@@ -48,4 +48,13 @@
   # We deliberately don't enable shell-integration auto-start; you start it deliberately.
 
   programs.home-manager.enable = true;       # let HM manage itself in the guest
+
+  # docker compose shim (instead of alias)
+  (pkgs.writeShellScriptBin "docker" ''
+      if [ "$1" = "compose" ]; then
+        shift
+        exec ${pkgs.docker-compose}/bin/docker-compose "$@"
+      fi
+      exec ${pkgs.podman}/bin/podman "$@"
+    '')
 }

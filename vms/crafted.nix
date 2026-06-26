@@ -5,6 +5,9 @@
   # AWS tooling — crafted-specific, not in the shared baseline
   home.packages = [ pkgs.awscli2 ];
 
+  # use override file for docker compose to prevent api root access
+  home.sessionVariables.COMPOSE_FILE = "docker-compose.yml:/home/tyson.guest/incisive-portal-override.yml";
+
   # crafted's compose file mounts /var/run/docker.sock into the api container.
   # Rootless Podman has no such socket — remap it to the Podman socket.
   # Kept out of the (unmodifiable) client repo via a separate override file.
@@ -14,6 +17,7 @@
         volumes:
           - /run/user/501/podman/podman.sock:/var/run/docker.sock
   '';
+
 
   programs.git.settings = {
     user.name = "tyson-crafted";
