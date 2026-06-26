@@ -33,10 +33,10 @@ provision:
       apt-get install -y -qq \
         podman uidmap crun fuse-overlayfs slirp4netns passt \
         netavark aardvark-dns catatonit podman-compose
-      printf '%s:100000:65536\n' "${LIMA_CIDATA_USER}" > /etc/subuid
-      printf '%s:100000:65536\n' "${LIMA_CIDATA_USER}" > /etc/subgid
+      printf '%s:100000:65536\n' "tyson" > /etc/subuid
+      printf '%s:100000:65536\n' "tyson" > /etc/subgid
       chmod u+s /usr/bin/newuidmap /usr/bin/newgidmap
-      loginctl enable-linger "${LIMA_CIDATA_USER}"
+      loginctl enable-linger "tyson"
   - mode: user
     script: |
       #!/usr/bin/env bash
