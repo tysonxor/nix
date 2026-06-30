@@ -3,7 +3,10 @@
   imports = [ ../guests.nix ];
 
   # AWS tooling — crafted-specific, not in the shared baseline
-  home.packages = [ pkgs.awscli2 ];
+  home.packages = [ 
+    pkgs.awscli2 
+    pkgs.ssm-session-manager-plugin
+  ];
 
   # use override file for docker compose to prevent api root access
   home.sessionVariables.COMPOSE_FILE = "docker-compose.yml:/home/tyson.guest/incisive-portal-override.yml";

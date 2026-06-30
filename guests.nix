@@ -29,6 +29,7 @@
     enable = true;
     settings = {
       init.defaultBranch = "main";
+      push.autoSetupRemote = true;
       # user.name / user.email intentionally NOT set here — set per-instance
       # --- TODO: paste your full git aliases here when you have them, e.g.:
       # alias.co = "checkout";

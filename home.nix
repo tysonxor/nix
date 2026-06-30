@@ -14,6 +14,7 @@
       user.email = "12140944+tysonxor@users.noreply.github.com";
       init.defaultBranch = "main";
     };
+    push.autoSetupRemote = true;
   };
 
   programs.ssh = {
