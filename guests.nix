@@ -54,6 +54,7 @@
     nerd-fonts.jetbrains-mono
     docker-compose
     zellij
+    postgresql
 
     # docker compose shim (instead of alias)
     (pkgs.writeShellScriptBin "docker" ''

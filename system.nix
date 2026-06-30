@@ -14,7 +14,12 @@
     dock.largesize = 64;
     dock.magnification = true;
     NSGlobalDomain.KeyRepeat = 1;
-    NSGlobalDomain.InitialKeyRepeat = 10;
+    NSGlobalDomain.InitialKeyRepeat = 15;
+  };
+
+  system.keyboard = {
+    enableKeyMapping = true;
+    remapCapsLockToEscape = true;
   };
 
   users.users.tyson = {
