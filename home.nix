@@ -1,5 +1,7 @@
 { config, pkgs, ... }:
 {
+  imports = [ ./shared.nix ];
+
   home.username = "tyson";
   home.homeDirectory = "/Users/tyson";
   home.stateVersion = "24.05";  # set once, don't bump casually
@@ -13,8 +15,8 @@
       user.name = "tysonxor";
       user.email = "12140944+tysonxor@users.noreply.github.com";
       init.defaultBranch = "main";
+      push.autoSetupRemote = true;
     };
-    push.autoSetupRemote = true;
   };
 
   programs.ssh = {
@@ -69,20 +71,20 @@
     '';
   };
 
-  programs.zsh = {
-    enable = true;
-    autosuggestion.enable = true;
-    syntaxHighlighting.enable = true;
-    enableCompletion = true;
-  };
+ # programs.zsh = {
+ #   enable = true;
+ #   autosuggestion.enable = true;
+ #   syntaxHighlighting.enable = true;
+ #   enableCompletion = true;
+ # };
 
-  programs.atuin = {
-    enable = true;
-    enableZshIntegration = true;
-  };
+#  programs.atuin = {
+#    enable = true;
+#    enableZshIntegration = true;
+#  };
 
-  programs.starship = {
-    enable = true;
-    enableZshIntegration = true;
-  };
+#  programs.starship = {
+#    enable = true;
+#    enableZshIntegration = true;
+#  };
 }

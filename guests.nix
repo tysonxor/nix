@@ -1,5 +1,7 @@
 { config, pkgs, ... }:
 {
+  imports = [ ./shared.nix ];
+
   home.username = "tyson";
   home.homeDirectory = "/home/tyson.guest"; # Linux guest path (Lima default), NOT /Users
   home.stateVersion = "24.05";              # match host; set once
@@ -7,22 +9,22 @@
   home.sessionVariables.DOCKER_HOST = "unix:///run/user/501/podman/podman.sock";
 
   # --- shell ---
-  programs.zsh = {
-    enable = true;
-    enableCompletion = true;
-    autosuggestion.enable = true;
-    syntaxHighlighting.enable = true;
-  };
-
-  programs.atuin = {
-    enable = true;
-    enableZshIntegration = true;
-  };
-
-  programs.starship = {
-    enable = true;
-    enableZshIntegration = true;
-  };
+#  programs.zsh = {
+#    enable = true;
+#    enableCompletion = true;
+#    autosuggestion.enable = true;
+#    syntaxHighlighting.enable = true;
+#  };
+#
+#  programs.atuin = {
+#    enable = true;
+#    enableZshIntegration = true;
+#  };
+#
+#  programs.starship = {
+#    enable = true;
+#    enableZshIntegration = true;
+#  };
 
   # --- git (identity comes from the per-instance file; this is shared config) ---
   programs.git = {
@@ -31,9 +33,6 @@
       init.defaultBranch = "main";
       push.autoSetupRemote = true;
       # user.name / user.email intentionally NOT set here — set per-instance
-      # --- TODO: paste your full git aliases here when you have them, e.g.:
-      # alias.co = "checkout";
-      # alias.st = "status";
     };
   };
 
