@@ -8,23 +8,10 @@
   home.sessionVariables.TERM = "xterm-256color"; # fixes weirness with zsh
   home.sessionVariables.DOCKER_HOST = "unix:///run/user/501/podman/podman.sock";
 
-  # --- shell ---
-#  programs.zsh = {
-#    enable = true;
-#    enableCompletion = true;
-#    autosuggestion.enable = true;
-#    syntaxHighlighting.enable = true;
-#  };
-#
-#  programs.atuin = {
-#    enable = true;
-#    enableZshIntegration = true;
-#  };
-#
-#  programs.starship = {
-#    enable = true;
-#    enableZshIntegration = true;
-#  };
+  programs.zellij = {
+    enable = true;
+    settings.default_shell = "/home/tyson.guest/.nix-profile/bin/zsh";
+  };
 
   # --- git (identity comes from the per-instance file; this is shared config) ---
   programs.git = {
@@ -52,7 +39,6 @@
     curl
     nerd-fonts.jetbrains-mono
     docker-compose
-    zellij
     postgresql
 
     # docker compose shim (instead of alias)
@@ -64,9 +50,6 @@
         exec ${pkgs.podman}/bin/podman "$@"
       '')
   ];
-
-  # --- Zellij: installed above; config added later (Phase 7) ---
-  # We deliberately don't enable shell-integration auto-start; you start it deliberately.
 
   programs.home-manager.enable = true;       # let HM manage itself in the guest
 }
