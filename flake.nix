@@ -7,10 +7,10 @@
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
-    # mac-app-util.url = "github:hraban/mac-app-util";   # TEMP disabled: common-lisp.net 503. Re-enable when host recovers.
+    mac-app-util.url = "github:hraban/mac-app-util";
   };
 
-  outputs = inputs@{ self, nix-darwin, nixpkgs, home-manager, ... }:
+  outputs = inputs@{ self, nix-darwin, nixpkgs, home-manager, mac-app-util, ... }:
   let
     guestPkgs = nixpkgs.legacyPackages."aarch64-linux";
 
@@ -41,15 +41,15 @@
       specialArgs = { inherit self; };
       modules = [
         ./system.nix
-        # mac-app-util.darwinModules.default                # TEMP disabled with input above
+        mac-app-util.darwinModules.default
         home-manager.darwinModules.home-manager
         {
           home-manager.useGlobalPkgs = true;
           home-manager.useUserPackages = true;
           home-manager.users.tyson = import ./home.nix;
-          # home-manager.sharedModules = [
-          #   mac-app-util.homeManagerModules.default        # TEMP disabled with input above
-          # ];
+          home-manager.sharedModules = [
+            mac-app-util.homeManagerModules.default
+          ];
         }
       ];
     };
