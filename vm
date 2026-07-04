@@ -138,6 +138,24 @@ EOF
     need_name
     limactl stop "$name" && limactl delete "$name"
     ;;
+  destroy-secrets)
+    # Permanently remove an identity's config + decryption key + .sops.yaml rule.
+    # (Run 'vm destroy <name>' first if the VM still exists.)
+    need_name
+    command -v yq >/dev/null || { echo "ERROR: 'yq' not on PATH (git add home.nix && vm rebuild)."; exit 1; }
+    echo "This will PERMANENTLY delete:"
+    echo "  - $REPO/vm-configs/$name.nix"
+    echo "  - $REPO/vm-configs/$name/  (encrypted secrets)"
+    echo "  - $KEYDIR/$name.age        (age PRIVATE key — unrecoverable)"
+    echo "  - the '$name' rule in $REPO/.sops.yaml"
+    read -r -p "Delete secrets + config for '$name'? [y/N] " ans
+    [ "$ans" = "y" ] || [ "$ans" = "Y" ] || { echo "aborted."; exit 1; }
+    rm -rf "$REPO/vm-configs/$name" "$REPO/vm-configs/$name.nix"
+    rm -f "$KEYDIR/$name.age"
+    RE="^vm-configs/${name}/secrets\\.yaml\$" \
+      yq -i 'del(.creation_rules[] | select(.path_regex == strenv(RE)))' "$REPO/.sops.yaml"
+    echo "==> Removed secrets + config for '$name'. Commit + push to finish."
+    ;;
   shell)
     need_name
     limactl shell "$name" /home/tyson.guest/.nix-profile/bin/zsh
@@ -157,6 +175,7 @@ vm — manage dev guests
   vm rekey <name>     rotate this VM's age key + re-encrypt its secrets
   vm create <name>    create + bootstrap a guest
   vm destroy <name>   stop + delete a guest
+  vm destroy-secrets <name>   remove an identity's config + age key + .sops.yaml rule
   vm shell <name>     shell into a guest
   vm list             list guests
   vm rebuild          rebuild the Mac host config

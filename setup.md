@@ -50,12 +50,14 @@ nix/
 
 ```
 vm new <name>       vm secrets <name>    vm rekey <name>
-vm create <name>    vm destroy <name>    vm shell <name>    vm list    vm rebuild
+vm create <name>    vm destroy <name>    vm destroy-secrets <name>
+vm shell <name>     vm list              vm rebuild
 ```
 
 - **Adding a client (easy path):** `vm new <client>` scaffolds everything — age keypair (Mac keystore), `.sops.yaml` rule, encrypted `vm-configs/<client>/secrets.yaml`, and `vm-configs/<client>.nix`. Then: edit git identity in `vm-configs/<client>.nix` → `vm secrets <client>` (fill real secrets) → `git add -A && commit && push` → `vm create <client>`.
 - `vm secrets <name>` — edit/rotate a VM's sops secrets in place (opens `sops`; decrypts for edit, re-encrypts on save).
 - `vm rekey <name>` — rotate the VM's age key + re-encrypt its secrets to the new key. Then commit/push and **recreate** the VM so the guest gets the new key.
+- `vm destroy-secrets <name>` — tear down an identity: removes `vm-configs/<name>.nix`, `vm-configs/<name>/`, the keystore `~/.config/nix-secrets/<name>.age`, and the `.sops.yaml` rule (prompts first). Run after `vm destroy <name>`; then commit/push.
 - `vm create` is explicit: it **fails loudly before booting** if `vm-configs/<name>/secrets.yaml` exists but the age key is missing (never auto-generates).
 - `vm shell` launches zsh (`limactl shell "$name" zsh`) since Lima won't honor the login shell.
 - **Gotcha:** `vm` + any flake-read file are build artifacts/git-tracked. edit -> `git add` -> `vm rebuild`; and **push before `vm create`** (bootstrap fetches GitHub `main`). The new subcommands need `sops`/`age`/`yq` on PATH (in `home.nix`) — so after pulling this, `git add home.nix vm && vm rebuild` once.

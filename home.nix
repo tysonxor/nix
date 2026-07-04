@@ -38,19 +38,7 @@
     };
   };
 
-  programs.ghostty = {
-    enable = true;
-    package = pkgs.ghostty-bin;        # Darwin: prebuilt binary, NOT pkgs.ghostty (source build)
-    enableZshIntegration = true;       # change to enableFishIntegration / enableBashIntegration to match your shell
-
-    settings = {
-      # font-family = "JetBrainsMono Nerd Font";
-      font-size = 13;
-      theme = "Abernathy";
-      background-opacity = 0.95;
-      macos-option-as-alt = true;
-    };
-  };
+  # Ghostty is installed manually on the host (not via Nix).
 
   programs.neovim = {
     enable = true;
