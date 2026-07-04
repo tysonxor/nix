@@ -7,6 +7,10 @@
   home.stateVersion = "24.05";  # set once, don't bump casually
   home.packages= [
     (pkgs.writeShellScriptBin "vm" (builtins.readFile ./vm))
+    # sops-nix authoring tools (Mac host only — used to create/edit per-VM
+    # secrets and generate age keypairs). NOT needed inside guests.
+    pkgs.sops
+    pkgs.age
   ];
 
   programs.git = {

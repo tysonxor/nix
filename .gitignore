@@ -1,0 +1,15 @@
+# --- sops-nix / secret leak defense (public repo) ---
+# NEVER commit plaintext secrets or age private keys.
+# Encrypted vms/*/secrets.yaml files ARE committed (ciphertext only).
+
+# age private keys (decryption identities) — live on the Mac, never here
+*.age
+keys.txt
+
+# any accidentally-decrypted output
+*.dec
+*.decrypted
+secrets.yaml.dec
+
+# per-project plaintext env
+.env.local

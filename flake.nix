@@ -8,6 +8,8 @@
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     mac-app-util.url = "github:hraban/mac-app-util";
+    sops-nix.url = "github:Mic92/sops-nix";
+    sops-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = inputs@{ self, nix-darwin, nixpkgs, home-manager, mac-app-util, ... }:
@@ -25,7 +27,13 @@
     mkGuest = file:
       home-manager.lib.homeManagerConfiguration {
         pkgs = guestPkgs;
-        modules = [ (./vms + "/${file}") ];
+        modules = [
+          # sops-nix home-manager module: no-op unless a guest declares
+          # sops.secrets, so un-migrated guests (personal, dummy-podman) are
+          # unaffected and need no age key.
+          inputs.sops-nix.homeManagerModules.sops
+          (./vms + "/${file}")
+        ];
       };
 
     # personal.nix -> "personal", crafted.nix -> "crafted"

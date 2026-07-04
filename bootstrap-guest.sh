@@ -23,6 +23,10 @@ fi
 
 echo "==> Building environment (.#$TARGET)..."
 cd "$REPO_DIR"
+# sops-nix decrypts during home-manager activation and needs the user systemd
+# runtime dir set (it resolves secret mount points under $XDG_RUNTIME_DIR).
+# In a non-interactive `limactl shell` this may be unset, so set it explicitly.
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 nix run home-manager/master -- switch -b backup --flake ".#$TARGET"
 
 echo "==> Setting login shell to zsh..."
@@ -40,16 +44,24 @@ if [ ! -d "$HOME/.config/nvim" ]; then
 fi
 
 echo "==> SSH key..."
-if [ ! -f "$HOME/.ssh/id_ed25519" ]; then
+# If home-manager (sops-nix) already placed the key at ~/.ssh/id_ed25519 during
+# the switch above, do nothing — the key is managed declaratively and the public
+# key is already registered on GitHub for this identity. Only fall back to
+# generating an ephemeral in-VM key for guests NOT yet migrated to sops.
+if [ -f "$HOME/.ssh/id_ed25519" ]; then
+  echo "  SSH key present (sops-managed or pre-existing) — skipping generation."
+  ssh -T git@github.com || true
+else
+  echo "  No SSH key found — generating an ephemeral one (guest not on sops-nix)."
   ssh-keygen -t ed25519 -C "tyson@$TARGET" -f "$HOME/.ssh/id_ed25519" -N ""
+  echo ""
+  echo "  Public key — copy this:"
+  echo "  ----------------------------------------"
+  cat "$HOME/.ssh/id_ed25519.pub"
+  echo "  ----------------------------------------"
+  echo "  Paste at https://github.com/settings/keys"
+  echo ""
+  read -r -p "  Press Enter once added on GitHub..."
+  ssh -T git@github.com || true
 fi
-echo ""
-echo "  Public key — copy this:"
-echo "  ----------------------------------------"
-cat "$HOME/.ssh/id_ed25519.pub"
-echo "  ----------------------------------------"
-echo "  Paste at https://github.com/settings/keys"
-echo ""
-read -r -p "  Press Enter once added on GitHub..."
-ssh -T git@github.com || true
 echo "==> Done."

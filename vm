@@ -16,6 +16,20 @@ case "$cmd" in
     need_name
     [ -f "$REPO/vms/$name.nix" ] || { echo "ERROR: create vms/$name.nix first, then push."; exit 1; }
     limactl start --name="$name" "$TEMPLATE" --tty=false
+    # --- sops-nix: place this VM's age PRIVATE key BEFORE home-manager runs ---
+    # Key lives on the Mac at ~/.config/nix-secrets/<name>.age (outside the repo).
+    # mounts:[] seals the guest, so copy it in over Lima's SSH. Guests declaring
+    # no sops.secrets don't need one — warn and continue.
+    KEYFILE="$HOME/.config/nix-secrets/$name.age"
+    if [ -f "$KEYFILE" ]; then
+      echo "==> Injecting age key for '$name'..."
+      limactl shell "$name" mkdir -p /home/tyson.guest/.config/sops/age
+      limactl copy "$KEYFILE" "$name:/home/tyson.guest/.config/sops/age/keys.txt"
+      limactl shell "$name" chmod 600 /home/tyson.guest/.config/sops/age/keys.txt
+    else
+      echo "WARN: no age key at $KEYFILE — sops secrets for '$name' will NOT decrypt."
+      echo "      (fine if '$name' declares no sops.secrets; else see setup.md)"
+    fi
     limactl shell "$name" bash -c "curl -fsSL $SCRIPT_URL | bash -s -- $name"
     ;;
   destroy)

@@ -38,6 +38,10 @@ nix/
   vms/
     personal.nix
     crafted.nix      # + awscli2, COMPOSE_FILE override, incisive-portal-override.yml
+    sops-demo.nix    # sops-nix demo identity (sandboxed secret paths)
+    sops-demo/secrets.yaml   # sops-ENCRYPTED dummy secrets (subdir: flake generator ignores it)
+  .sops.yaml         # sops creation rules: which age PUBLIC key each secrets file encrypts to
+  .gitignore         # blocks *.age / keys.txt / *.dec / .env.local (leak defense)
   lima/guest.yaml    # vz, mounts:[], forwardAgent:false, containerd off, rootless-podman provisioning + probe
   SETUP.md
 ```
@@ -120,8 +124,44 @@ vm create <name>    vm destroy <name>    vm shell <name>    vm list    vm rebuil
 - VM boundary protects between clients; this container boundary protects secrets from your own dependencies within a client.
 - NOTE: crafted's api already has the engine socket (client requirement) so that specific container is not a clean sandbox — scrutinize.
 
-### Hardening — sops-nix
-- Encrypted-in-repo secrets, decrypted at runtime. Makes the manual/ephemeral things reproducible: SSH keys, `~/.aws/config`, `.env.local`. Worth it now — you have 3 such items.
+### Hardening — sops-nix  (MACHINERY DONE, migrate real secrets per-VM)
+Encrypted-in-repo secrets, decrypted at home-manager activation inside each guest. Machinery is implemented + proven against dummy secrets (`sops-demo`). Real-secret migration is per-VM (below).
+
+**Model**
+- **age**, one keypair **per VM identity**. PUBLIC keys → `.sops.yaml` (committed). PRIVATE keys → Mac at `~/.config/nix-secrets/<name>.age` (**never committed**, chmod 600).
+- **Isolation:** each `.sops.yaml` `creation_rule` uses an **anchored** `path_regex` (`^vms/<name>/secrets\.yaml$`) so a file encrypts to exactly ONE key. crafted's VM (holding only crafted's key) cannot decrypt personal's secrets. Proven: `sops -d` with the wrong key exits non-zero, no plaintext.
+- **Key delivery:** `mounts:[]` seals the guest, so `vm create` copies `~/.config/nix-secrets/<name>.age` into the guest at `~/.config/sops/age/keys.txt` via `limactl copy`, BEFORE `home-manager switch` runs (sops decrypts during activation).
+- **Landing:** SSH key → `~/.ssh/id_ed25519` (mode 0600, tmpfs symlink — ssh follows it). AWS → `~/.aws/config`. `.env.local` → a **real file** at a safe home path (rootless Podman can't read a tmpfs-symlink volume-mounted into a container; use compose `env_file:`, not a volume mount).
+- **Reboot:** sops-nix installs a `sops-nix.service` user unit; `enable-linger tyson` re-decrypts into tmpfs at boot. Age key persists on disk.
+- **Snowflake:** `guests.nix` declares NO secrets (only `sops.age.keyFile`). Each `vms/<name>.nix` opts in to exactly the secrets it needs — none / ssh-only / ssh+aws+env / custom. AWS & `.env.local` are NOT baseline.
+
+**The one manual per-VM step (irreducible — placing the root-of-trust key):**
+```bash
+# on the Mac, once per client:
+mkdir -p ~/.config/nix-secrets && chmod 700 ~/.config/nix-secrets
+age-keygen -o ~/.config/nix-secrets/<name>.age   # prints the PUBLIC key; chmod 600 the file
+# add that public key + an anchored creation_rule to .sops.yaml, then:
+sops vms/<name>/secrets.yaml                       # $EDITOR opens; save = encrypted
+grep -q 'ENC\[' vms/<name>/secrets.yaml && sops -d vms/<name>/secrets.yaml >/dev/null && echo OK
+# git add/commit/push (ciphertext only), then: vm create <name>
+```
+
+**Migration checklist (move REAL secrets, per VM):**
+1. `age-keygen -o ~/.config/nix-secrets/<name>.age` (Mac). Record the public key.
+2. Add the public key + anchored `creation_rule` for `vms/<name>/secrets.yaml` to `.sops.yaml`.
+3. `sops vms/<name>/secrets.yaml` — paste REAL values:
+   - `ssh_key`: generate on the Mac (`ssh-keygen -t ed25519 -f /tmp/k -N ""`), paste `/tmp/k`, then `shred -u /tmp/k`. Add the **public** key to that client's GitHub; delete the old orphaned key.
+   - `aws_config`: the real SSO `~/.aws/config`. `env_local`: the real `.env.local`.
+4. In `vms/<name>.nix`: `sops.defaultSopsFile = ./<name>/secrets.yaml;` + `sops.secrets` blocks (mirror `sops-demo.nix`, but real paths: `ssh_key` → `~/.ssh/id_ed25519`, `aws_config` → `~/.aws/config`, `env_local` → real file via compose `env_file:`).
+5. **Verify no plaintext staged:** `git diff --cached` shows only `ENC[...]`; `grep -R 'PRIVATE KEY' vms/*/secrets.yaml` finds nothing plaintext. Commit + push.
+6. `vm destroy <name>` → `vm create <name>`. Confirm secrets land, GitHub SSH + AWS profile work.
+7. Drop the now-redundant manual bits from "START HERE".
+
+**Guardrails (PUBLIC repo — never commit plaintext):**
+- `sops.age.keyFile` is a **string literal**, never a Nix path (a path literal copies the private key into world-readable `/nix/store`).
+- `.gitignore` blocks `*.age` / `keys.txt` / `*.dec` / `.env.local`.
+- Every committed `secrets.yaml` must contain `ENC[` — verify before every commit.
+- Age private keys live only in `~/.config/nix-secrets/` on the Mac — **back them up** (password manager). Losing one = re-encrypt that client's secrets to a fresh key.
 
 ### Cleanup reminders
-- After `vm destroy` + recreate: old GitHub SSH key orphaned -> delete + add new. Redo `~/.aws/config`, `.env.local`, project build (until sops-nix + sandbox).
+- After `vm destroy` + recreate: old GitHub SSH key orphaned -> delete + add new. Redo `~/.aws/config`, `.env.local`, project build. **Once a VM is migrated to sops-nix (see Hardening — sops-nix), the SSH key / `~/.aws/config` / `.env.local` come back automatically on recreate; only the project build remains.**

@@ -8,6 +8,14 @@
   home.sessionVariables.TERM = "xterm-256color"; # fixes weirness with zsh
   home.sessionVariables.DOCKER_HOST = "unix:///run/user/501/podman/podman.sock";
 
+  # --- sops-nix: shared machinery only, NO secrets here (snowflake per guest) ---
+  # The age PRIVATE key is placed by `vm create` (limactl copy) at this path.
+  # CRITICAL: this is a STRING literal, not a Nix path — a path literal would
+  # copy the private key into the world-readable /nix/store. `~` does not
+  # expand in Nix, so the absolute path is required. Harmless no-op for guests
+  # that declare no sops.secrets.
+  sops.age.keyFile = "/home/tyson.guest/.config/sops/age/keys.txt";
+
   programs.zellij = {
     enable = true;
     settings.default_shell = "/home/tyson.guest/.nix-profile/bin/zsh";
