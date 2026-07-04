@@ -37,7 +37,7 @@
         ];
       };
 
-    # personal.nix -> "personal", crafted.nix -> "crafted"
+    # personal.nix -> "personal", acme.nix -> "acme"
     guestConfigs = nixpkgs.lib.listToAttrs (
       map (file:
         let n = nixpkgs.lib.removeSuffix ".nix" file; in {

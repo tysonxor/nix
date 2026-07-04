@@ -2,7 +2,7 @@
 {
   imports = [ ./shared.nix ];
 
-  # rebuild THIS guest from inside the VM (vmName = its flake target, e.g. "crafted")
+  # rebuild THIS guest from inside the VM (vmName = its flake target, e.g. "personal")
   programs.zsh.shellAliases.rebuild = "home-manager switch --flake ~/nix#${vmName}";
 
   home.username = "tyson";
