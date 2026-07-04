@@ -11,6 +11,7 @@
     # secrets and generate age keypairs). NOT needed inside guests.
     pkgs.sops
     pkgs.age
+    pkgs.yq-go   # robust .sops.yaml edits for `vm new` / `vm rekey`
   ];
 
   programs.git = {

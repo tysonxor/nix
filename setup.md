@@ -49,12 +49,16 @@ nix/
 ## The `vm` command
 
 ```
+vm new <name>       vm secrets <name>    vm rekey <name>
 vm create <name>    vm destroy <name>    vm shell <name>    vm list    vm rebuild
 ```
 
-- Adding a client: write `vms/<client>.nix`, push, `vm create <client>`.
+- **Adding a client (easy path):** `vm new <client>` scaffolds everything — age keypair (Mac keystore), `.sops.yaml` rule, encrypted `vms/<client>/secrets.yaml`, and `vms/<client>.nix`. Then: edit git identity in `vms/<client>.nix` → `vm secrets <client>` (fill real secrets) → `git add -A && commit && push` → `vm create <client>`.
+- `vm secrets <name>` — edit/rotate a VM's sops secrets in place (opens `sops`; decrypts for edit, re-encrypts on save).
+- `vm rekey <name>` — rotate the VM's age key + re-encrypt its secrets to the new key. Then commit/push and **recreate** the VM so the guest gets the new key.
+- `vm create` is explicit: it **fails loudly before booting** if `vms/<name>/secrets.yaml` exists but the age key is missing (never auto-generates).
 - `vm shell` launches zsh (`limactl shell "$name" zsh`) since Lima won't honor the login shell.
-- **Gotcha:** `vm` + any flake-read file are build artifacts/git-tracked. edit -> `git add` -> `vm rebuild`; and **push before `vm create`** (bootstrap fetches GitHub `main`).
+- **Gotcha:** `vm` + any flake-read file are build artifacts/git-tracked. edit -> `git add` -> `vm rebuild`; and **push before `vm create`** (bootstrap fetches GitHub `main`). The new subcommands need `sops`/`age`/`yq` on PATH (in `home.nix`) — so after pulling this, `git add home.nix vm && vm rebuild` once.
 
 ---
 
@@ -136,6 +140,7 @@ Encrypted-in-repo secrets, decrypted at home-manager activation inside each gues
 - **Snowflake:** `guests.nix` declares NO secrets (only `sops.age.keyFile`). Each `vms/<name>.nix` opts in to exactly the secrets it needs — none / ssh-only / ssh+aws+env / custom. AWS & `.env.local` are NOT baseline.
 
 **The one manual per-VM step (irreducible — placing the root-of-trust key):**
+`vm new <name>` now does the keypair + `.sops.yaml` rule + encrypted `secrets.yaml` + `vms/<name>.nix` in one shot (see "The `vm` command"). The equivalent by hand:
 ```bash
 # on the Mac, once per client:
 mkdir -p ~/.config/nix-secrets && chmod 700 ~/.config/nix-secrets
@@ -147,15 +152,14 @@ grep -q 'ENC\[' vms/<name>/secrets.yaml && sops -d vms/<name>/secrets.yaml >/dev
 ```
 
 **Migration checklist (move REAL secrets, per VM):**
-1. `age-keygen -o ~/.config/nix-secrets/<name>.age` (Mac). Record the public key.
-2. Add the public key + anchored `creation_rule` for `vms/<name>/secrets.yaml` to `.sops.yaml`.
-3. `sops vms/<name>/secrets.yaml` — paste REAL values:
+1. `vm new <name>` — scaffolds the age key, `.sops.yaml` rule, encrypted `secrets.yaml`, and `vms/<name>.nix`. (By hand: `age-keygen -o ~/.config/nix-secrets/<name>.age` + add an anchored rule to `.sops.yaml`.)
+2. Edit git identity in `vms/<name>.nix`; add/remove `sops.secrets` blocks for what this guest needs (real paths: `ssh_key` → `~/.ssh/id_ed25519`, `aws_config` → `~/.aws/config`, `env_local` → real file via compose `env_file:`).
+3. `vm secrets <name>` — paste REAL values:
    - `ssh_key`: generate on the Mac (`ssh-keygen -t ed25519 -f /tmp/k -N ""`), paste `/tmp/k`, then `shred -u /tmp/k`. Add the **public** key to that client's GitHub; delete the old orphaned key.
    - `aws_config`: the real SSO `~/.aws/config`. `env_local`: the real `.env.local`.
-4. In `vms/<name>.nix`: `sops.defaultSopsFile = ./<name>/secrets.yaml;` + `sops.secrets` blocks (mirror `sops-demo.nix`, but real paths: `ssh_key` → `~/.ssh/id_ed25519`, `aws_config` → `~/.aws/config`, `env_local` → real file via compose `env_file:`).
-5. **Verify no plaintext staged:** `git diff --cached` shows only `ENC[...]`; `grep -R 'PRIVATE KEY' vms/*/secrets.yaml` finds nothing plaintext. Commit + push.
-6. `vm destroy <name>` → `vm create <name>`. Confirm secrets land, GitHub SSH + AWS profile work.
-7. Drop the now-redundant manual bits from "START HERE".
+4. **Verify no plaintext staged:** `git diff --cached` shows only `ENC[...]`; `grep -R 'PRIVATE KEY' vms/*/secrets.yaml` finds nothing plaintext. Commit + push.
+5. `vm destroy <name>` → `vm create <name>`. Confirm secrets land, GitHub SSH + AWS profile work.
+6. Drop the now-redundant manual bits from "START HERE". To rotate a key later: `vm rekey <name>` → commit/push → recreate.
 
 **Guardrails (PUBLIC repo — never commit plaintext):**
 - `sops.age.keyFile` is a **string literal**, never a Nix path (a path literal copies the private key into world-readable `/nix/store`).

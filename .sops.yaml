@@ -1,35 +1,7 @@
-# sops creation rules — which age PUBLIC key each secrets file encrypts to.
-# This file is PUBLIC (only public keys live here). Private keys live on the
-# Mac at ~/.config/nix-secrets/<name>.age and are NEVER committed.
-#
-# ISOLATION: each rule uses an ANCHORED, EXACT path_regex so a given
-# secrets.yaml encrypts to exactly ONE recipient. A broad regex would
-# silently encrypt to multiple clients and break per-VM isolation.
-#
-# Adding a real client:
-#   1. age-keygen -o ~/.config/nix-secrets/<name>.age   (record the public key)
-#   2. add a `&<name> <public-key>` anchor under keys: below
-#   3. add a creation_rule anchored to ^vms/<name>/secrets\.yaml$
-#   4. sops vms/<name>/secrets.yaml   (encrypts to that key)
-#   5. verify: sops -d vms/<name>/secrets.yaml  and  grep ENC\[ ...
-
-keys:
-  - &sops-demo age160xrpxq4h6rlfvrfs3r3c2mv08q372xzn28agjap6kvf0g63gqus2d6cm8
-  # - &crafted   age1...    # (add when migrating crafted)
-  # - &personal  age1...    # (add when migrating personal)
-
+# sops creation rules (machine-managed by `vm new` / `vm rekey`; docs in setup.md).
+# PUBLIC keys only. Private keys live on the Mac at ~/.config/nix-secrets/<name>.age,
+# never committed. Each rule is an ANCHORED path_regex -> exactly one recipient,
+# which is what enforces per-VM secret isolation.
 creation_rules:
   - path_regex: ^vms/sops-demo/secrets\.yaml$
-    key_groups:
-      - age:
-          - *sops-demo
-
-  # - path_regex: ^vms/crafted/secrets\.yaml$
-  #   key_groups:
-  #     - age:
-  #         - *crafted
-
-  # - path_regex: ^vms/personal/secrets\.yaml$
-  #   key_groups:
-  #     - age:
-  #         - *personal
+    age: age160xrpxq4h6rlfvrfs3r3c2mv08q372xzn28agjap6kvf0g63gqus2d6cm8
