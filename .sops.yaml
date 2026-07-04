@@ -5,3 +5,5 @@
 creation_rules:
   - path_regex: ^vm-configs/sops-demo/secrets\.yaml$
     age: age160xrpxq4h6rlfvrfs3r3c2mv08q372xzn28agjap6kvf0g63gqus2d6cm8
+  - path_regex: ^vm-configs/minimal/secrets\.yaml$
+    age: age10g8fle73euyr5uplktewzsxpjh7x68h6cfmhse5qcyz3t2mmjc7sm54nle
