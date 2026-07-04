@@ -27,7 +27,7 @@ Host stays private; all dev and AI-agent activity runs inside guest VMs.
 
 ```
 nix/
-  flake.nix          # auto-generates homeConfigurations from vms/*.nix
+  flake.nix          # auto-generates homeConfigurations from vm-configs/*.nix
   system.nix         # nix-darwin system
   home.nix           # host home-manager (ghostty, lima, vm cmd, personal git)
   guests.nix         # shared baseline: zsh, LazyVim toolchain, Zellij, docker-compose,
@@ -35,7 +35,7 @@ nix/
   bootstrap.sh       # fresh-Mac host bootstrap
   bootstrap-guest.sh # full guest setup
   vm                 # guest mgmt script (writeShellScriptBin, on PATH)
-  vms/
+  vm-configs/
     personal.nix
     crafted.nix      # + awscli2, COMPOSE_FILE override, incisive-portal-override.yml
     sops-demo.nix    # sops-nix demo identity (sandboxed secret paths)
@@ -53,10 +53,10 @@ vm new <name>       vm secrets <name>    vm rekey <name>
 vm create <name>    vm destroy <name>    vm shell <name>    vm list    vm rebuild
 ```
 
-- **Adding a client (easy path):** `vm new <client>` scaffolds everything — age keypair (Mac keystore), `.sops.yaml` rule, encrypted `vms/<client>/secrets.yaml`, and `vms/<client>.nix`. Then: edit git identity in `vms/<client>.nix` → `vm secrets <client>` (fill real secrets) → `git add -A && commit && push` → `vm create <client>`.
+- **Adding a client (easy path):** `vm new <client>` scaffolds everything — age keypair (Mac keystore), `.sops.yaml` rule, encrypted `vm-configs/<client>/secrets.yaml`, and `vm-configs/<client>.nix`. Then: edit git identity in `vm-configs/<client>.nix` → `vm secrets <client>` (fill real secrets) → `git add -A && commit && push` → `vm create <client>`.
 - `vm secrets <name>` — edit/rotate a VM's sops secrets in place (opens `sops`; decrypts for edit, re-encrypts on save).
 - `vm rekey <name>` — rotate the VM's age key + re-encrypt its secrets to the new key. Then commit/push and **recreate** the VM so the guest gets the new key.
-- `vm create` is explicit: it **fails loudly before booting** if `vms/<name>/secrets.yaml` exists but the age key is missing (never auto-generates).
+- `vm create` is explicit: it **fails loudly before booting** if `vm-configs/<name>/secrets.yaml` exists but the age key is missing (never auto-generates).
 - `vm shell` launches zsh (`limactl shell "$name" zsh`) since Lima won't honor the login shell.
 - **Gotcha:** `vm` + any flake-read file are build artifacts/git-tracked. edit -> `git add` -> `vm rebuild`; and **push before `vm create`** (bootstrap fetches GitHub `main`). The new subcommands need `sops`/`age`/`yq` on PATH (in `home.nix`) — so after pulling this, `git add home.nix vm && vm rebuild` once.
 
@@ -68,7 +68,7 @@ vm create <name>    vm destroy <name>    vm shell <name>    vm list    vm rebuil
 - flake/system/home split, named `mac`.
 - Lima template; boot/SSH/no-leak validated; containerd disabled.
 - `vm` script on PATH; single-command `vm create` end-to-end; auto-gen homeConfigurations; create guard.
-- `vms/` dir, shared `guests.nix` + `bootstrap-guest.sh` at root.
+- `vm-configs/` dir, shared `guests.nix` + `bootstrap-guest.sh` at root.
 - personal + crafted VMs live, isolated, own keys, separate GitHub accounts.
 
 ### Rootless Podman (reproducible, in guest.yaml)
@@ -133,31 +133,31 @@ Encrypted-in-repo secrets, decrypted at home-manager activation inside each gues
 
 **Model**
 - **age**, one keypair **per VM identity**. PUBLIC keys → `.sops.yaml` (committed). PRIVATE keys → Mac at `~/.config/nix-secrets/<name>.age` (**never committed**, chmod 600).
-- **Isolation:** each `.sops.yaml` `creation_rule` uses an **anchored** `path_regex` (`^vms/<name>/secrets\.yaml$`) so a file encrypts to exactly ONE key. crafted's VM (holding only crafted's key) cannot decrypt personal's secrets. Proven: `sops -d` with the wrong key exits non-zero, no plaintext.
+- **Isolation:** each `.sops.yaml` `creation_rule` uses an **anchored** `path_regex` (`^vm-configs/<name>/secrets\.yaml$`) so a file encrypts to exactly ONE key. crafted's VM (holding only crafted's key) cannot decrypt personal's secrets. Proven: `sops -d` with the wrong key exits non-zero, no plaintext.
 - **Key delivery:** `mounts:[]` seals the guest, so `vm create` copies `~/.config/nix-secrets/<name>.age` into the guest at `~/.config/sops/age/keys.txt` via `limactl copy`, BEFORE `home-manager switch` runs (sops decrypts during activation).
 - **Landing:** SSH key → `~/.ssh/id_ed25519` (mode 0600, tmpfs symlink — ssh follows it). AWS → `~/.aws/config`. `.env.local` → a **real file** at a safe home path (rootless Podman can't read a tmpfs-symlink volume-mounted into a container; use compose `env_file:`, not a volume mount).
 - **Reboot:** sops-nix installs a `sops-nix.service` user unit; `enable-linger tyson` re-decrypts into tmpfs at boot. Age key persists on disk.
-- **Snowflake:** `guests.nix` declares NO secrets (only `sops.age.keyFile`). Each `vms/<name>.nix` opts in to exactly the secrets it needs — none / ssh-only / ssh+aws+env / custom. AWS & `.env.local` are NOT baseline.
+- **Snowflake:** `guests.nix` declares NO secrets (only `sops.age.keyFile`). Each `vm-configs/<name>.nix` opts in to exactly the secrets it needs — none / ssh-only / ssh+aws+env / custom. AWS & `.env.local` are NOT baseline.
 
 **The one manual per-VM step (irreducible — placing the root-of-trust key):**
-`vm new <name>` now does the keypair + `.sops.yaml` rule + encrypted `secrets.yaml` + `vms/<name>.nix` in one shot (see "The `vm` command"). The equivalent by hand:
+`vm new <name>` now does the keypair + `.sops.yaml` rule + encrypted `secrets.yaml` + `vm-configs/<name>.nix` in one shot (see "The `vm` command"). The equivalent by hand:
 ```bash
 # on the Mac, once per client:
 mkdir -p ~/.config/nix-secrets && chmod 700 ~/.config/nix-secrets
 age-keygen -o ~/.config/nix-secrets/<name>.age   # prints the PUBLIC key; chmod 600 the file
 # add that public key + an anchored creation_rule to .sops.yaml, then:
-sops vms/<name>/secrets.yaml                       # $EDITOR opens; save = encrypted
-grep -q 'ENC\[' vms/<name>/secrets.yaml && sops -d vms/<name>/secrets.yaml >/dev/null && echo OK
+sops vm-configs/<name>/secrets.yaml                       # $EDITOR opens; save = encrypted
+grep -q 'ENC\[' vm-configs/<name>/secrets.yaml && sops -d vm-configs/<name>/secrets.yaml >/dev/null && echo OK
 # git add/commit/push (ciphertext only), then: vm create <name>
 ```
 
 **Migration checklist (move REAL secrets, per VM):**
-1. `vm new <name>` — scaffolds the age key, `.sops.yaml` rule, encrypted `secrets.yaml`, and `vms/<name>.nix`. (By hand: `age-keygen -o ~/.config/nix-secrets/<name>.age` + add an anchored rule to `.sops.yaml`.)
-2. Edit git identity in `vms/<name>.nix`; add/remove `sops.secrets` blocks for what this guest needs (real paths: `ssh_key` → `~/.ssh/id_ed25519`, `aws_config` → `~/.aws/config`, `env_local` → real file via compose `env_file:`).
+1. `vm new <name>` — scaffolds the age key, `.sops.yaml` rule, encrypted `secrets.yaml`, and `vm-configs/<name>.nix`. (By hand: `age-keygen -o ~/.config/nix-secrets/<name>.age` + add an anchored rule to `.sops.yaml`.)
+2. Edit git identity in `vm-configs/<name>.nix`; add/remove `sops.secrets` blocks for what this guest needs (real paths: `ssh_key` → `~/.ssh/id_ed25519`, `aws_config` → `~/.aws/config`, `env_local` → real file via compose `env_file:`).
 3. `vm secrets <name>` — paste REAL values:
    - `ssh_key`: generate on the Mac (`ssh-keygen -t ed25519 -f /tmp/k -N ""`), paste `/tmp/k`, then `shred -u /tmp/k`. Add the **public** key to that client's GitHub; delete the old orphaned key.
    - `aws_config`: the real SSO `~/.aws/config`. `env_local`: the real `.env.local`.
-4. **Verify no plaintext staged:** `git diff --cached` shows only `ENC[...]`; `grep -R 'PRIVATE KEY' vms/*/secrets.yaml` finds nothing plaintext. Commit + push.
+4. **Verify no plaintext staged:** `git diff --cached` shows only `ENC[...]`; `grep -R 'PRIVATE KEY' vm-configs/*/secrets.yaml` finds nothing plaintext. Commit + push.
 5. `vm destroy <name>` → `vm create <name>`. Confirm secrets land, GitHub SSH + AWS profile work.
 6. Drop the now-redundant manual bits from "START HERE". To rotate a key later: `vm rekey <name>` → commit/push → recreate.
 

@@ -15,9 +15,9 @@ need_name() { [ -n "$name" ] || { echo "usage: vm $cmd <name>"; exit 1; }; }
 case "$cmd" in
   new)
     # Scaffold a whole identity: age keypair + .sops.yaml rule + encrypted
-    # secrets.yaml + vms/<name>.nix template. Explicit — does NOT commit/push.
+    # secrets.yaml + vm-configs/<name>.nix template. Explicit — does NOT commit/push.
     need_name
-    [ -e "$REPO/vms/$name.nix" ] && { echo "ERROR: vms/$name.nix already exists."; exit 1; }
+    [ -e "$REPO/vm-configs/$name.nix" ] && { echo "ERROR: vm-configs/$name.nix already exists."; exit 1; }
     for bin in age-keygen sops yq; do
       command -v "$bin" >/dev/null || { echo "ERROR: '$bin' not on PATH (git add home.nix && vm rebuild)."; exit 1; }
     done
@@ -34,18 +34,18 @@ case "$cmd" in
     PUB=$(age-keygen -y "$KEYFILE")
 
     # 2. append an anchored creation_rule -> only this VM's key
-    RE="^vms/${name}/secrets\\.yaml\$" PUB="$PUB" \
+    RE="^vm-configs/${name}/secrets\\.yaml\$" PUB="$PUB" \
       yq -i '.creation_rules += [{"path_regex": strenv(RE), "age": strenv(PUB)}]' "$REPO/.sops.yaml"
     echo "==> Added .sops.yaml rule for $name"
 
     # 3. seed + encrypt secrets.yaml (placeholder — fill via 'vm secrets')
-    mkdir -p "$REPO/vms/$name"
-    printf 'ssh_key: REPLACE_ME\n' > "$REPO/vms/$name/secrets.yaml"
-    ( cd "$REPO" && sops -e -i "vms/$name/secrets.yaml" )
-    echo "==> Encrypted vms/$name/secrets.yaml"
+    mkdir -p "$REPO/vm-configs/$name"
+    printf 'ssh_key: REPLACE_ME\n' > "$REPO/vm-configs/$name/secrets.yaml"
+    ( cd "$REPO" && sops -e -i "vm-configs/$name/secrets.yaml" )
+    echo "==> Encrypted vm-configs/$name/secrets.yaml"
 
-    # 4. vms/<name>.nix from template
-    cat > "$REPO/vms/$name.nix" <<EOF
+    # 4. vm-configs/<name>.nix from template
+    cat > "$REPO/vm-configs/$name.nix" <<EOF
 { config, pkgs, ... }:
 {
   imports = [ ../guests.nix ];
@@ -69,11 +69,11 @@ case "$cmd" in
   # sops.secrets."env_local"  = { path = "/home/tyson.guest/.config/$name/env.local"; };
 }
 EOF
-    echo "==> Wrote vms/$name.nix"
+    echo "==> Wrote vm-configs/$name.nix"
     cat <<EOF
 
 Next:
-  1. edit git identity in vms/$name.nix
+  1. edit git identity in vm-configs/$name.nix
   2. vm secrets $name          # fill real secrets (ssh_key, etc.)
   3. git add -A && git commit && git push
   4. vm create $name
@@ -83,9 +83,9 @@ EOF
   secrets)
     # Edit/rotate this VM's secrets in place (sops decrypts for edit, re-encrypts on save).
     need_name
-    [ -f "$REPO/vms/$name/secrets.yaml" ] || { echo "ERROR: no secrets for '$name'. Run: vm new $name"; exit 1; }
+    [ -f "$REPO/vm-configs/$name/secrets.yaml" ] || { echo "ERROR: no secrets for '$name'. Run: vm new $name"; exit 1; }
     command -v sops >/dev/null || { echo "ERROR: 'sops' not on PATH (git add home.nix && vm rebuild)."; exit 1; }
-    ( cd "$REPO" && SOPS_AGE_KEY_FILE="$KEYDIR/$name.age" sops "vms/$name/secrets.yaml" )
+    ( cd "$REPO" && SOPS_AGE_KEY_FILE="$KEYDIR/$name.age" sops "vm-configs/$name/secrets.yaml" )
     ;;
 
   rekey)
@@ -93,7 +93,7 @@ EOF
     need_name
     OLD="$KEYDIR/$name.age"
     [ -f "$OLD" ] || { echo "ERROR: no key for '$name' at $OLD"; exit 1; }
-    [ -f "$REPO/vms/$name/secrets.yaml" ] || { echo "ERROR: no secrets for '$name'."; exit 1; }
+    [ -f "$REPO/vm-configs/$name/secrets.yaml" ] || { echo "ERROR: no secrets for '$name'."; exit 1; }
     for bin in age-keygen sops yq; do
       command -v "$bin" >/dev/null || { echo "ERROR: '$bin' not on PATH (git add home.nix && vm rebuild)."; exit 1; }
     done
@@ -101,10 +101,10 @@ EOF
     # so write via stdout redirect instead.
     NEW=$(mktemp); age-keygen > "$NEW" 2>/dev/null; chmod 600 "$NEW"
     PUB=$(age-keygen -y "$NEW")
-    RE="^vms/${name}/secrets\\.yaml\$" PUB="$PUB" \
+    RE="^vm-configs/${name}/secrets\\.yaml\$" PUB="$PUB" \
       yq -i '(.creation_rules[] | select(.path_regex == strenv(RE)) | .age) = strenv(PUB)' "$REPO/.sops.yaml"
     # updatekeys decrypts with the OLD key, re-encrypts to the NEW recipient
-    ( cd "$REPO" && SOPS_AGE_KEY_FILE="$OLD" sops updatekeys -y "vms/$name/secrets.yaml" )
+    ( cd "$REPO" && SOPS_AGE_KEY_FILE="$OLD" sops updatekeys -y "vm-configs/$name/secrets.yaml" )
     mv "$NEW" "$OLD"; chmod 600 "$OLD"
     echo "==> Rekeyed $name. commit+push, then RECREATE the VM (vm destroy $name && vm create $name)"
     echo "    so the guest receives the new key."
@@ -112,12 +112,12 @@ EOF
 
   create)
     need_name
-    [ -f "$REPO/vms/$name.nix" ] || { echo "ERROR: create vms/$name.nix first (vm new $name), then push."; exit 1; }
-    SECRETS="$REPO/vms/$name/secrets.yaml"
+    [ -f "$REPO/vm-configs/$name.nix" ] || { echo "ERROR: create vm-configs/$name.nix first (vm new $name), then push."; exit 1; }
+    SECRETS="$REPO/vm-configs/$name/secrets.yaml"
     KEYFILE="$KEYDIR/$name.age"
     # Pre-flight (explicit, fail loud BEFORE booting): a sops VM needs its key.
     if [ -f "$SECRETS" ] && [ ! -f "$KEYFILE" ]; then
-      echo "ERROR: vms/$name/secrets.yaml exists but no age key at $KEYFILE."
+      echo "ERROR: vm-configs/$name/secrets.yaml exists but no age key at $KEYFILE."
       echo "       Restore the key from your backup, or run: vm new $name"
       exit 1
     fi
@@ -152,7 +152,7 @@ EOF
     cat <<EOF
 vm — manage dev guests
 
-  vm new <name>       scaffold a new identity (age key + .sops.yaml + secrets + vms/<name>.nix)
+  vm new <name>       scaffold a new identity (age key + .sops.yaml + secrets + vm-configs/<name>.nix)
   vm secrets <name>   edit/rotate this VM's sops secrets
   vm rekey <name>     rotate this VM's age key + re-encrypt its secrets
   vm create <name>    create + bootstrap a guest

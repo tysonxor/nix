@@ -16,32 +16,35 @@
   let
     guestPkgs = nixpkgs.legacyPackages."aarch64-linux";
 
-    # every vms/*.nix is a guest identity / target
+    # every vm-configs/*.nix is a guest identity / target
     guestFiles = builtins.attrNames (
       nixpkgs.lib.filterAttrs
         (name: type:
           type == "regular" && nixpkgs.lib.hasSuffix ".nix" name)
-        (builtins.readDir ./vms)
+        (builtins.readDir ./vm-configs)
     );
 
-    mkGuest = file:
+    mkGuest = name: file:
       home-manager.lib.homeManagerConfiguration {
         pkgs = guestPkgs;
+        # vmName lets guests.nix build a `rebuild` alias for THIS flake target.
+        extraSpecialArgs = { vmName = name; };
         modules = [
           # sops-nix home-manager module: no-op unless a guest declares
           # sops.secrets, so un-migrated guests (personal, dummy-podman) are
           # unaffected and need no age key.
           inputs.sops-nix.homeManagerModules.sops
-          (./vms + "/${file}")
+          (./vm-configs + "/${file}")
         ];
       };
 
     # personal.nix -> "personal", crafted.nix -> "crafted"
     guestConfigs = nixpkgs.lib.listToAttrs (
-      map (file: {
-        name = nixpkgs.lib.removeSuffix ".nix" file;
-        value = mkGuest file;
-      }) guestFiles
+      map (file:
+        let n = nixpkgs.lib.removeSuffix ".nix" file; in {
+          name = n;
+          value = mkGuest n file;
+        }) guestFiles
     );
   in
   {

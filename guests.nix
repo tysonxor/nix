@@ -1,6 +1,9 @@
-{ config, pkgs, ... }:
+{ config, pkgs, vmName, ... }:
 {
   imports = [ ./shared.nix ];
+
+  # rebuild THIS guest from inside the VM (vmName = its flake target, e.g. "crafted")
+  programs.zsh.shellAliases.rebuild = "home-manager switch --flake ~/nix#${vmName}";
 
   home.username = "tyson";
   home.homeDirectory = "/home/tyson.guest"; # Linux guest path (Lima default), NOT /Users
