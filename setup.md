@@ -110,8 +110,8 @@ vm shell <name>     vm list              vm rebuild
 ### NEEDS VERIFICATION
 - Yesterday's Podman/compose/terminfo/shim config went in incrementally via repeated `home-manager switch` on a RUNNING crafted. Declarative now, but NOT proven to reproduce first-try from clean `vm create`. **Verify by recreating crafted from scratch (see START HERE #1).**
 
-### Parked
-- **mac-app-util** (Spotlight for host GUI apps): commented out, blocked on common-lisp.net 503s. Re-enable when their server recovers.
+### Removed
+- **mac-app-util** (Spotlight for host GUI apps): removed — its only consumer (Nix-managed Ghostty) is now installed manually on the host, so it served nothing.
 
 ---
 
