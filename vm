@@ -18,7 +18,7 @@ case "$cmd" in
     # secrets.yaml + vm-configs/<name>.nix template. Explicit — does NOT commit/push.
     need_name
     [ -e "$REPO/vm-configs/$name.nix" ] && { echo "ERROR: vm-configs/$name.nix already exists."; exit 1; }
-    for bin in age-keygen sops yq; do
+    for bin in age-keygen sops yq ssh-keygen; do
       command -v "$bin" >/dev/null || { echo "ERROR: '$bin' not on PATH (git add home.nix && vm rebuild)."; exit 1; }
     done
 
@@ -38,11 +38,18 @@ case "$cmd" in
       yq -i '.creation_rules += [{"path_regex": strenv(RE), "age": strenv(PUB)}]' "$REPO/.sops.yaml"
     echo "==> Added .sops.yaml rule for $name"
 
-    # 3. seed + encrypt secrets.yaml (placeholder — fill via 'vm secrets')
+    # 3. generate this VM's GitHub SSH keypair, store the PRIVATE key, encrypt.
+    #    Every guest needs a GitHub key, so make it up front instead of seeding a
+    #    REPLACE_ME placeholder. Add your own later with 'vm secrets' if you must.
     mkdir -p "$REPO/vm-configs/$name"
-    printf 'ssh_key: REPLACE_ME\n' > "$REPO/vm-configs/$name/secrets.yaml"
+    TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+    ssh-keygen -t ed25519 -C "$name" -f "$TMP/id_ed25519" -N "" >/dev/null
+    PUBKEY=$(cat "$TMP/id_ed25519.pub")
+    # $(...) strips trailing newlines, but an OpenSSH key MUST end in one — keep it.
+    KEY="$(cat "$TMP/id_ed25519"; echo x)"; KEY="${KEY%x}"
+    KEY="$KEY" yq -n '.ssh_key = strenv(KEY)' > "$REPO/vm-configs/$name/secrets.yaml"
     ( cd "$REPO" && sops -e -i "vm-configs/$name/secrets.yaml" )
-    echo "==> Encrypted vm-configs/$name/secrets.yaml"
+    echo "==> Generated GitHub SSH keypair + encrypted vm-configs/$name/secrets.yaml"
 
     # 4. vm-configs/<name>.nix from template
     cat > "$REPO/vm-configs/$name.nix" <<EOF
@@ -74,9 +81,12 @@ EOF
 
 Next:
   1. edit git identity in vm-configs/$name.nix
-  2. vm secrets $name          # fill real secrets (ssh_key, etc.)
+  2. add this VM's public key at https://github.com/settings/keys :
+       $PUBKEY
   3. git add -A && git commit && git push
   4. vm create $name
+
+  (add more secrets: vm secrets $name  •  regenerate the GitHub key: vm genkey $name)
 EOF
     ;;
 
@@ -86,6 +96,41 @@ EOF
     [ -f "$REPO/vm-configs/$name/secrets.yaml" ] || { echo "ERROR: no secrets for '$name'. Run: vm new $name"; exit 1; }
     command -v sops >/dev/null || { echo "ERROR: 'sops' not on PATH (git add home.nix && vm rebuild)."; exit 1; }
     ( cd "$REPO" && SOPS_AGE_KEY_FILE="$KEYDIR/$name.age" sops "vm-configs/$name/secrets.yaml" )
+    ;;
+
+  genkey)
+    # Generate a fresh ed25519 SSH keypair for this VM: store the PRIVATE key in
+    # its sops secrets (ssh_key -> ~/.ssh/id_ed25519 in the guest) and print the
+    # PUBLIC key to register on GitHub. Saves hand-generating + pasting a key.
+    need_name
+    SECRETS="$REPO/vm-configs/$name/secrets.yaml"
+    KEYFILE="$KEYDIR/$name.age"
+    [ -f "$SECRETS" ] || { echo "ERROR: no secrets for '$name'. Run: vm new $name"; exit 1; }
+    [ -f "$KEYFILE" ] || { echo "ERROR: no age key for '$name' at $KEYFILE."; exit 1; }
+    for bin in ssh-keygen sops yq; do
+      command -v "$bin" >/dev/null || { echo "ERROR: '$bin' not on PATH (git add home.nix && vm rebuild)."; exit 1; }
+    done
+    # Don't silently clobber a key that's already been filled in.
+    CUR=$(SOPS_AGE_KEY_FILE="$KEYFILE" sops -d --extract '["ssh_key"]' "$SECRETS" 2>/dev/null || true)
+    if [ -n "$CUR" ] && [ "$CUR" != "REPLACE_ME" ]; then
+      read -r -p "ssh_key is already set for '$name'. Replace it with a fresh keypair? [y/N] " ans
+      [ "$ans" = "y" ] || [ "$ans" = "Y" ] || { echo "aborted."; exit 1; }
+    fi
+    TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+    ssh-keygen -t ed25519 -C "$name" -f "$TMP/id_ed25519" -N "" >/dev/null
+    # $(...) strips trailing newlines, but an OpenSSH key MUST end in one — keep it.
+    KEY="$(cat "$TMP/id_ed25519"; echo x)"; KEY="${KEY%x}"
+    # decrypt -> set the multiline key with yq -> re-encrypt (recipient from .sops.yaml)
+    ( cd "$REPO"
+      SOPS_AGE_KEY_FILE="$KEYFILE" sops -d -i "vm-configs/$name/secrets.yaml"
+      KEY="$KEY" yq -i '.ssh_key = strenv(KEY)' "vm-configs/$name/secrets.yaml"
+      sops -e -i "vm-configs/$name/secrets.yaml" )
+    echo "==> Stored a fresh ed25519 private key in vm-configs/$name/secrets.yaml"
+    echo ""
+    echo "  Public key — add at https://github.com/settings/keys :"
+    echo "  ----------------------------------------"
+    cat "$TMP/id_ed25519.pub"
+    echo "  ----------------------------------------"
     ;;
 
   rekey)
@@ -170,8 +215,9 @@ EOF
     cat <<EOF
 vm — manage dev guests
 
-  vm new <name>       scaffold a new identity (age key + .sops.yaml + secrets + vm-configs/<name>.nix)
+  vm new <name>       scaffold a new identity (age key + .sops.yaml + GitHub SSH key + vm-configs/<name>.nix)
   vm secrets <name>   edit/rotate this VM's sops secrets
+  vm genkey <name>    generate a fresh GitHub SSH keypair for this VM (prints the public key)
   vm rekey <name>     rotate this VM's age key + re-encrypt its secrets
   vm create <name>    create + bootstrap a guest
   vm destroy <name>   stop + delete a guest
