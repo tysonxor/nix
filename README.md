@@ -122,6 +122,56 @@ every committed `secrets.yaml` must contain `ENC[`. Back up `~/.config/nix-secre
 
 ---
 
+## Agent sandbox (Claude Code)
+
+Agents run *inside* guests, so a prompt-injected or compromised one is already sealed from the host
+and every other client — but it could still read **this** guest's own secrets. So every guest
+enforces Claude Code's **Bash sandbox** plus tool-level read denies, guest-wide.
+
+- **Enforced, not opt-in.** `lima/guest.yaml` sets it up at create time: installs `bubblewrap` +
+  `socat`, adds the Ubuntu 24.04 AppArmor `bwrap` user-namespace profile, and writes a
+  **root-owned** policy to `/etc/claude-code/managed-settings.json`. Managed settings are the
+  highest precedence, so a cloned/malicious repo's `.claude/settings.json` **cannot** disable it and
+  the agent cannot tamper with it. It covers **every repo** on the guest — nothing to configure per-repo.
+- **Two layers** (the sandbox only isolates Bash subprocesses): `sandbox.credentials` denies bash
+  reads of `~/.ssh`, `~/.aws`, and `~/.config/sops` (the age key that decrypts *all* this guest's
+  sops secrets) plus Claude's own creds; `permissions.deny Read(…)` guards the Read/Edit tools for
+  the same paths.
+- **Strict, fail-closed.** `failIfUnavailable: true` (no working sandbox → Claude won't start) and
+  `allowUnsandboxedCommands: false` (no escape hatch). `docker`/`podman`/`podman-compose` sit in
+  `excludedCommands` so the container workflow still runs; network is left at prompt-on-new-domain.
+- **No secrets in the policy** — path names only — so it lives safely in this public repo.
+
+**Using it in a new repo** — there's no settings file to create; the managed policy already covers it:
+
+1. `cd ~/<repo> && claude`. Isolation is already on; accept the trust-folder prompt.
+2. Run `/sandbox`. The **Dependencies** tab should be all green (`bubblewrap`, `socat`, `ripgrep`);
+   the **Config** tab shows `enabled: true` and `allowUnsandboxedCommands: false` (the managed policy).
+3. On the **Mode** tab pick **auto-allow** so sandboxed Bash runs without a prompt per command
+   (this writes the git-ignored `.claude/settings.local.json`). Skipping it keeps per-command
+   prompts — the isolation is identical either way; auto-allow is just ergonomics.
+4. Approve network domains as prompted — the first request to a new host asks once, then allows it
+   for the session.
+5. **Only if something breaks** (a tool must write outside the repo, or can't be sandboxed under
+   strict mode) add a project `.claude/settings.json` to *widen* — never disable — e.g.:
+   ```json
+   {
+     "sandbox": {
+       "filesystem": { "allowWrite": ["~/.cache/<tool>"] },
+       "excludedCommands": ["<tool> *"]
+     }
+   }
+   ```
+   Arrays merge with the managed policy, and this file commits with the repo so the team shares it.
+6. Sanity check: ask Claude to `cat ~/.config/sops/age/keys.txt` → **denied**; a normal build or
+   `ls` → just runs.
+
+**Migration:** provisioning runs at create, so recreate existing guests (`vm destroy <name> &&
+vm create <name>`) to pick this up. Fail-closed is safe for un-migrated guests — the managed file
+and `bwrap` always arrive together.
+
+---
+
 ## Principles
 
 The rules everything else follows from:
@@ -142,7 +192,9 @@ The rules everything else follows from:
 - **Explicit over implicit.** Named commands do setup and generation; `vm create` refuses to
   proceed (loudly) rather than silently papering over a missing prerequisite.
 - **Least privilege for untrusted code.** Guests are sealed from the host (`mounts: []`, no
-  agent forwarding); the roadmap keeps secrets out of the container layer that runs dependencies.
+  agent forwarding); agents run under an enforced Claude Code sandbox that can't read the guest's
+  secrets (see **Agent sandbox**); the roadmap keeps secrets out of the container layer that runs
+  dependencies.
 
 ## For agents (context for future work)
 
@@ -170,6 +222,11 @@ If you're an AI agent or new contributor working in this repo, read this first.
 - **Working safely in a live guest.** Development sometimes happens *inside* the personal VM.
   Don't clobber the real `~/.ssh/id_ed25519`: point demo/test secrets at sandbox paths
   (`~/.config/<name>/…`), and don't `home-manager switch` a live VM to an unrelated config.
+- **Agent sandbox is enforced.** Guests ship a managed Claude Code policy at
+  `/etc/claude-code/managed-settings.json` (provisioned by `lima/guest.yaml`) that sandboxes Bash
+  and read-denies `~/.ssh`, `~/.aws`, `~/.config/sops`. It's strict/fail-closed and can't be
+  overridden by a repo — changing it means editing `lima/guest.yaml` and recreating the guest
+  (see **Agent sandbox**).
 - **Verify without a full VM.** Most changes check non-destructively: `nix flake check`,
   `nix eval .#homeConfigurations.<name>.activationPackage.drvPath` (evaluates, no activation),
   and sops isolation via the CLI (`sops -d` succeeds with the right key, fails with a wrong one).
@@ -200,5 +257,6 @@ vm-configs/
   <name>/secrets.yaml                         # sops-encrypted, one recipient (flake ignores subdirs)
 .sops.yaml          # creation rules: which age PUBLIC key each secrets file encrypts to
 .gitignore          # leak defense: *.age, keys.txt, *.dec, .env.local
-lima/guest.yaml     # generic VM template (vz, mounts:[], forwardAgent:false, rootless podman)
+lima/guest.yaml     # generic VM template (vz, mounts:[], forwardAgent:false, rootless podman,
+                    #   Claude Code sandbox: bubblewrap + /etc/claude-code/managed-settings.json)
 ```
