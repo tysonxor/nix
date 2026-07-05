@@ -32,11 +32,66 @@ provision:
       apt-get update -qq
       apt-get install -y -qq \
         podman uidmap crun fuse-overlayfs slirp4netns passt \
-        netavark aardvark-dns catatonit podman-compose
+        netavark aardvark-dns catatonit podman-compose \
+        bubblewrap socat
       printf '%s:100000:65536\n' "tyson" > /etc/subuid
       printf '%s:100000:65536\n' "tyson" > /etc/subgid
       chmod u+s /usr/bin/newuidmap /usr/bin/newgidmap
       loginctl enable-linger "tyson"
+
+      # --- Claude Code Bash sandbox: prerequisites + enforced policy ---
+      # bubblewrap needs unprivileged user namespaces; Ubuntu 24.04's default
+      # AppArmor policy blocks them. The profile targets the apt binary at
+      # /usr/bin/bwrap (a nix-store bwrap would NOT match), so bwrap must be the
+      # apt package installed above. No-op where the restriction isn't enforced.
+      if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = "1" ]; then
+        tee /etc/apparmor.d/bwrap >/dev/null <<'PROF'
+      abi <abi/4.0>,
+      include <tunables/global>
+
+      profile bwrap /usr/bin/bwrap flags=(unconfined) {
+        userns,
+        include if exists <local/bwrap>
+      }
+      PROF
+        systemctl reload apparmor
+      fi
+
+      # Managed settings = highest precedence: a cloned/malicious repo's
+      # .claude/settings.json cannot disable this, and the agent can't tamper
+      # with it (root-owned; the sandbox denies writes to settings files).
+      # Contains path NAMES only — no secrets — safe for this public repo.
+      # Two layers: sandbox.credentials denies bash-subprocess reads; the sandbox
+      # does NOT cover Read/Edit, so permissions.deny Read(...) guards those too.
+      mkdir -p /etc/claude-code
+      cat > /etc/claude-code/managed-settings.json <<'JSON'
+      {
+        "sandbox": {
+          "enabled": true,
+          "failIfUnavailable": true,
+          "allowUnsandboxedCommands": false,
+          "excludedCommands": ["docker *", "podman *", "podman-compose *"],
+          "credentials": {
+            "files": [
+              { "path": "~/.ssh", "mode": "deny" },
+              { "path": "~/.aws", "mode": "deny" },
+              { "path": "~/.config/sops", "mode": "deny" },
+              { "path": "~/.claude", "mode": "deny" },
+              { "path": "~/.claude.json", "mode": "deny" }
+            ]
+          }
+        },
+        "permissions": {
+          "deny": [
+            "Read(~/.ssh/**)",
+            "Read(~/.aws/**)",
+            "Read(~/.config/sops/**)",
+            "Read(~/.claude/**)",
+            "Read(~/.claude.json)"
+          ]
+        }
+      }
+      JSON
   - mode: user
     script: |
       #!/usr/bin/env bash
