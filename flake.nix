@@ -13,7 +13,13 @@
 
   outputs = inputs@{ self, nix-darwin, nixpkgs, home-manager, ... }:
   let
-    guestPkgs = nixpkgs.legacyPackages."aarch64-linux";
+    # claude-code (the agent CLI on every guest) is unfree; allow just it,
+    # not all unfree packages — least privilege.
+    guestPkgs = import nixpkgs {
+      system = "aarch64-linux";
+      config.allowUnfreePredicate = pkg:
+        builtins.elem (nixpkgs.lib.getName pkg) [ "claude-code" ];
+    };
 
     # every vm-configs/*.nix is a guest identity / target
     guestFiles = builtins.attrNames (

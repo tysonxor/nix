@@ -61,8 +61,12 @@ provision:
       # .claude/settings.json cannot disable this, and the agent can't tamper
       # with it (root-owned; the sandbox denies writes to settings files).
       # Contains path NAMES only — no secrets — safe for this public repo.
-      # Two layers: sandbox.credentials denies bash-subprocess reads; the sandbox
-      # does NOT cover Read/Edit, so permissions.deny Read(...) guards those too.
+      # Two layers, since the sandbox only covers Bash subprocesses:
+      #   - filesystem.denyRead blocks bash reads on every sandbox-capable version;
+      #     credentials.files does the same on claude-code v2.1.187+ (and can also
+      #     unset env vars). The pinned nixpkgs ships 2.1.177 (< 2.1.187), where
+      #     credentials is ignored — so denyRead is what actually enforces it there.
+      #   - the sandbox does NOT cover Read/Edit, so permissions.deny Read(...) does.
       mkdir -p /etc/claude-code
       cat > /etc/claude-code/managed-settings.json <<'JSON'
       {
@@ -71,6 +75,9 @@ provision:
           "failIfUnavailable": true,
           "allowUnsandboxedCommands": false,
           "excludedCommands": ["docker *", "podman *", "podman-compose *"],
+          "filesystem": {
+            "denyRead": ["~/.ssh", "~/.aws", "~/.config/sops", "~/.claude", "~/.claude.json"]
+          },
           "credentials": {
             "files": [
               { "path": "~/.ssh", "mode": "deny" },

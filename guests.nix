@@ -46,6 +46,7 @@
     gcc           # C compiler for tree-sitter parser compilation
     gnumake
     nodejs        # some LSPs / Copilot
+    claude-code   # the `claude` CLI; Bash sandbox enforced via /etc/claude-code (see lima/guest.yaml)
     git
     curl
     nerd-fonts.jetbrains-mono
