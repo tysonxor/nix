@@ -25,9 +25,11 @@ in
     pkgs.yq-go   # robust .sops.yaml edits for `vm new` / `vm rekey`
 
     # kickstart.nvim runtime deps: telescope/grep (ripgrep, fd), treesitter
-    # parser compilation (gcc, gnumake), and mason/plugin unpacking (unzip).
+    # parser install/compilation (tree-sitter CLI + gcc, gnumake), and
+    # mason/plugin unpacking (unzip).
     pkgs.ripgrep
     pkgs.fd
+    pkgs.tree-sitter
     pkgs.gcc
     pkgs.gnumake
     pkgs.unzip
@@ -74,6 +76,20 @@ in
   # into ~/.local/share/nvim on first launch. init.lua itself is a read-only
   # store symlink — to customise, fork kickstart and repoint `rev`/`hash` above.
   xdg.configFile."nvim/init.lua".source = "${kickstart}/init.lua";
+
+  # Declaratively-provided tree-sitter grammars. nvim-treesitter treats a
+  # `parser/<lang>.so` found anywhere on the runtimepath as "installed", and
+  # ~/.config/nvim is on that path — so exposing the Nix-built parsers here
+  # means kickstart's `auto_install = true` finds them already present and
+  # never shells out to the tree-sitter CLI / gcc for these languages.
+  # Add a language: append `p.<lang>` below and rebuild. Grammar version comes
+  # from nixpkgs while the nvim-treesitter plugin is pinned by lazy-lock.json;
+  # if they drift and queries error, bump both together. The CLI + gcc stay in
+  # home.packages as the runtime fallback for any language not listed here.
+  xdg.configFile."nvim/parser".source =
+    "${pkgs.vimPlugins.nvim-treesitter.withPlugins (p: [
+      p.lua p.vim p.vimdoc p.bash p.nix p.markdown p.markdown_inline p.query
+    ])}/parser";
 
  # programs.zsh = {
  #   enable = true;
