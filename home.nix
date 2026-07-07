@@ -91,6 +91,18 @@ in
       p.lua p.vim p.vimdoc p.bash p.nix p.markdown p.markdown_inline p.query
     ])}/parser";
 
+  # File tree (neo-tree.nvim). kickstart ships this as an opt-in module but
+  # leaves its `require 'kickstart.plugins.neo-tree'` commented out in init.lua
+  # — which we can't uncomment since init.lua is a read-only store symlink.
+  # Instead, ship kickstart's own neo-tree module (stays pinned with `rev`) and
+  # load it from a `plugin/` file, which Neovim auto-sources after init.lua.
+  # neo-tree installs its plugins via vim.pack on first launch. Toggle with `\`.
+  xdg.configFile."nvim/lua/kickstart/plugins/neo-tree.lua".source =
+    "${kickstart}/lua/kickstart/plugins/neo-tree.lua";
+  xdg.configFile."nvim/plugin/kickstart-neo-tree.lua".text = ''
+    require 'kickstart.plugins.neo-tree'
+  '';
+
  # programs.zsh = {
  #   enable = true;
  #   autosuggestion.enable = true;
