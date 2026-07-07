@@ -1,4 +1,15 @@
 { config, pkgs, ... }:
+let
+  # kickstart.nvim, pinned. Only init.lua is shipped (as a store symlink), so
+  # the ~/.config/nvim dir stays writable for lazy.nvim's lazy-lock.json.
+  # Bump: rev + hash via `nix store prefetch-file --unpack <archive-url>`.
+  kickstart = pkgs.fetchFromGitHub {
+    owner = "nvim-lua";
+    repo = "kickstart.nvim";
+    rev = "f0a2108ed51547793c758d9318bad94f242b22e5";
+    hash = "sha256-FHNAmiGS51jy6RhP/0bPJPHtl2d8+tMwpAM1PTtJQf8=";
+  };
+in
 {
   imports = [ ./shared.nix ];
 
@@ -12,6 +23,14 @@
     pkgs.sops
     pkgs.age
     pkgs.yq-go   # robust .sops.yaml edits for `vm new` / `vm rekey`
+
+    # kickstart.nvim runtime deps: telescope/grep (ripgrep, fd), treesitter
+    # parser compilation (gcc, gnumake), and mason/plugin unpacking (unzip).
+    pkgs.ripgrep
+    pkgs.fd
+    pkgs.gcc
+    pkgs.gnumake
+    pkgs.unzip
   ];
 
   programs.git = {
@@ -47,22 +66,14 @@
     defaultEditor = true;            # sets $EDITOR; optional
     viAlias = true;                  # `vi` -> nvim; optional
     vimAlias = true;                 # `vim` -> nvim; optional
-
-    extraConfig = ''
-      " --- clipboard ---
-      set clipboard=unnamedplus      " yank/delete go to the system clipboard
-
-      " --- sane minimal defaults ---
-      set number                     " line numbers
-      set mouse=a                    " mouse support (helps with select/scroll)
-      set ignorecase smartcase       " smarter search
-      set expandtab shiftwidth=2 softtabstop=2  " 2-space indents
-      set clipboard=unnamedplus
-
-      " optional: make yanking the whole buffer to clipboard easy
-      nnoremap <leader>Y :%y+<CR>
-    '';
+    # No extraConfig on purpose: with empty rc content home-manager generates
+    # no init.lua, leaving the path free for the kickstart symlink below.
   };
+
+  # kickstart.nvim's init.lua, pinned via Nix. lazy.nvim bootstraps the plugins
+  # into ~/.local/share/nvim on first launch. init.lua itself is a read-only
+  # store symlink — to customise, fork kickstart and repoint `rev`/`hash` above.
+  xdg.configFile."nvim/init.lua".source = "${kickstart}/init.lua";
 
  # programs.zsh = {
  #   enable = true;
