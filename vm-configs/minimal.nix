@@ -13,6 +13,12 @@
     settings."github.com".identityFile = "~/.ssh/id_ed25519";
   };
 
+  # Guest-specific extras (merged with the shared set in guests.nix).
+  home.packages = with pkgs; [
+    uv       # Python package/deps manager
+    ffmpeg   # audio/video processing
+  ];
+
   # Secrets for this VM (edit with: vm secrets minimal). Add only what this
   # guest needs — snowflake per guest.
   sops.defaultSopsFile = ./minimal/secrets.yaml;
