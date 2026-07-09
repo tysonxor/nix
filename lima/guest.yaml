@@ -41,15 +41,19 @@ provision:
 
       # --- Claude Code Bash sandbox: prerequisites + enforced policy ---
       # bubblewrap needs unprivileged user namespaces; Ubuntu 24.04's default
-      # AppArmor policy blocks them. The profile targets the apt binary at
-      # /usr/bin/bwrap (a nix-store bwrap would NOT match), so bwrap must be the
-      # apt package installed above. No-op where the restriction isn't enforced.
+      # AppArmor policy blocks them, and the profile attaches by executable path.
+      # Claude Code is the Nix `claude-code`, which bundles its OWN bwrap under
+      # /nix/store/*/bin/bwrap — so profiling only /usr/bin/bwrap leaves Claude's
+      # bwrap unprofiled, its userns denied, the sandbox "unavailable", and (with
+      # failIfUnavailable) Bash disabled outright. Attach to BOTH paths: the apt
+      # binary and any nix-store bwrap (glob, since the store hash changes on
+      # rebuild). No-op where the restriction isn't enforced.
       if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = "1" ]; then
         tee /etc/apparmor.d/bwrap >/dev/null <<'PROF'
       abi <abi/4.0>,
       include <tunables/global>
 
-      profile bwrap /usr/bin/bwrap flags=(unconfined) {
+      profile bwrap /{usr/bin,nix/store/*/bin}/bwrap flags=(unconfined) {
         userns,
         include if exists <local/bwrap>
       }
