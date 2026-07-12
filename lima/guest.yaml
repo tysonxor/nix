@@ -71,6 +71,15 @@ provision:
       #     unset env vars). The pinned nixpkgs ships 2.1.177 (< 2.1.187), where
       #     credentials is ignored — so denyRead is what actually enforces it there.
       #   - the sandbox does NOT cover Read/Edit, so permissions.deny Read(...) does.
+      #
+      # Scope note: deny the credential FILE (~/.claude/.credentials.json), NOT the
+      # whole ~/.claude tree. Claude's own working state lives there too — memory
+      # (~/.claude/projects/*/memory/, MEMORY.md) and plan mode (~/.claude/plans/).
+      # A blanket ~/.claude deny leaves those Read-blocked but Write-allowed, which
+      # silently breaks memory recall and plan mode. Blocking them buys no security:
+      # the harness reads credentials/memory/plans INTERNALLY (not via the sandbox or
+      # the Read/Edit tools), so the token file stays unreadable to the agent whether
+      # or not the surrounding directory is denied.
       mkdir -p /etc/claude-code
       cat > /etc/claude-code/managed-settings.json <<'JSON'
       {
@@ -80,14 +89,14 @@ provision:
           "allowUnsandboxedCommands": false,
           "excludedCommands": ["docker *", "podman *", "podman-compose *"],
           "filesystem": {
-            "denyRead": ["~/.ssh", "~/.aws", "~/.config/sops", "~/.claude", "~/.claude.json"]
+            "denyRead": ["~/.ssh", "~/.aws", "~/.config/sops", "~/.claude/.credentials.json", "~/.claude.json"]
           },
           "credentials": {
             "files": [
               { "path": "~/.ssh", "mode": "deny" },
               { "path": "~/.aws", "mode": "deny" },
               { "path": "~/.config/sops", "mode": "deny" },
-              { "path": "~/.claude", "mode": "deny" },
+              { "path": "~/.claude/.credentials.json", "mode": "deny" },
               { "path": "~/.claude.json", "mode": "deny" }
             ]
           }
@@ -97,7 +106,7 @@ provision:
             "Read(~/.ssh/**)",
             "Read(~/.aws/**)",
             "Read(~/.config/sops/**)",
-            "Read(~/.claude/**)",
+            "Read(~/.claude/.credentials.json)",
             "Read(~/.claude.json)"
           ]
         }
