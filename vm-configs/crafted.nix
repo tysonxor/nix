@@ -6,6 +6,7 @@
   home.packages = [ 
     pkgs.awscli2 
     pkgs.ssm-session-manager-plugin
+    pkgs.terraform
   ];
 
   # use override file for docker compose to prevent api root access

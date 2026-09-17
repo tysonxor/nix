@@ -13,12 +13,11 @@
 
   outputs = inputs@{ self, nix-darwin, nixpkgs, home-manager, ... }:
   let
-    # claude-code (the agent CLI on every guest) is unfree; allow just it,
     # not all unfree packages — least privilege.
     guestPkgs = import nixpkgs {
       system = "aarch64-linux";
       config.allowUnfreePredicate = pkg:
-        builtins.elem (nixpkgs.lib.getName pkg) [ "claude-code" ];
+        builtins.elem (nixpkgs.lib.getName pkg) [ "claude-code" "terraform" ];
     };
 
     # every vm-configs/*.nix is a guest identity / target

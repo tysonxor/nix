@@ -32,4 +32,6 @@
     enable = true;
     enableZshIntegration = true;
   };
+
+  programs.bat.enable = true;
 }
