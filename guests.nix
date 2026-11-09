@@ -52,6 +52,7 @@
     nerd-fonts.jetbrains-mono
     docker-compose
     postgresql
+    pnpm
 
     # docker compose shim (instead of alias)
     (pkgs.writeShellScriptBin "docker" ''
