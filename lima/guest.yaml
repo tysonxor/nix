@@ -39,27 +39,25 @@ provision:
       chmod u+s /usr/bin/newuidmap /usr/bin/newgidmap
       loginctl enable-linger "tyson"
 
-      # --- Claude Code Bash sandbox: prerequisites + enforced policy ---
-      # bubblewrap needs unprivileged user namespaces; Ubuntu 24.04's default
-      # AppArmor policy blocks them, and the profile attaches by executable path.
-      # Claude Code is the Nix `claude-code`, which bundles its OWN bwrap under
-      # /nix/store/*/bin/bwrap — so profiling only /usr/bin/bwrap leaves Claude's
-      # bwrap unprofiled, its userns denied, the sandbox "unavailable", and (with
-      # failIfUnavailable) Bash disabled outright. Attach to BOTH paths: the apt
-      # binary and any nix-store bwrap (glob, since the store hash changes on
-      # rebuild). No-op where the restriction isn't enforced.
-      if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = "1" ]; then
-        tee /etc/apparmor.d/bwrap >/dev/null <<'PROF'
-      abi <abi/4.0>,
-      include <tunables/global>
-
-      profile bwrap /{usr/bin,nix/store/*/bin}/bwrap flags=(unconfined) {
-        userns,
-        include if exists <local/bwrap>
-      }
-      PROF
-        systemctl reload apparmor
-      fi
+      # --- Claude Code Bash sandbox: make unprivileged user namespaces work ---
+      # Claude Code's Bash sandbox uses bubblewrap, which needs unprivileged user
+      # namespaces. Ubuntu 24.04's AppArmor `restrict_unprivileged_userns` lets
+      # the namespace be CREATED but strips its capabilities, so bwrap fails at
+      #   bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted
+      # the sandbox becomes "unavailable", and (with failIfUnavailable) Bash is
+      # disabled outright.
+      #
+      # Disable the restriction DETERMINISTICALLY — no runtime guard. The previous
+      # approach gated an AppArmor profile on the CURRENT value of this flag, which
+      # made provisioning non-reproducible: a VM created while the flag read 0
+      # skipped the fix and broke later when a kernel/apparmor update flipped it to
+      # 1. Writing the sysctl unconditionally makes every VM come out identical
+      # regardless of boot-time state. The Lima VM (no host mounts) is the security
+      # boundary here; the bwrap sandbox is a second layer we simply need to WORK.
+      cat > /etc/sysctl.d/99-userns.conf <<'SYSCTL'
+      kernel.apparmor_restrict_unprivileged_userns = 0
+      SYSCTL
+      sysctl --system
 
       # Managed settings = highest precedence: a cloned/malicious repo's
       # .claude/settings.json cannot disable this, and the agent can't tamper
