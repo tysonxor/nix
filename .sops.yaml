@@ -7,3 +7,5 @@ creation_rules:
     age: age160xrpxq4h6rlfvrfs3r3c2mv08q372xzn28agjap6kvf0g63gqus2d6cm8
   - path_regex: ^vm-configs/minimal/secrets\.yaml$
     age: age10zdmuvnyq3cj4sl38zg45v37fawe5uapr3vvq09tdj5tszs58f8srqvyef
+  - path_regex: ^vm-configs/incisive/secrets\.yaml$
+    age: age16jjce67zyrrl7lkttr4jqz5qfepmtugvms6sp0dwjcf3upd0l5vqnfds7j
