@@ -45,6 +45,7 @@
     lazygit
     gcc           # C compiler for tree-sitter parser compilation
     gnumake
+    tree-sitter   # parser CLI required by nvim-treesitter 'main' branch (mason can't install it in the sealed guest)
     nodejs        # some LSPs / Copilot
     claude-code   # the `claude` CLI; Bash sandbox enforced via /etc/claude-code (see lima/guest.yaml)
     git

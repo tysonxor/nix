@@ -2,6 +2,26 @@
 {
   imports = [ ../guests.nix ];
 
+  # AWS tooling — incisive-specific, not in the shared baseline
+  home.packages = [
+    pkgs.awscli2
+    pkgs.ssm-session-manager-plugin
+    pkgs.terraform
+  ];
+
+  # use override file for docker compose to prevent api root access
+  home.sessionVariables.COMPOSE_FILE = "docker-compose.yml:/home/tyson.guest/incisive-portal-override.yml";
+
+  # The client compose file mounts /var/run/docker.sock into the api container.
+  # Rootless Podman has no such socket — remap it to the Podman socket.
+  # Kept out of the (unmodifiable) client repo via a separate override file.
+  home.file."incisive-portal-override.yml".text = ''
+    services:
+      api:
+        volumes:
+          - /run/user/501/podman/podman.sock:/var/run/docker.sock
+  '';
+
   programs.git.settings = {
     user.name = "tyson-incisive";
     user.email = "354999174+tyson-incisive@users.noreply.github.com";
@@ -12,6 +32,10 @@
     enableDefaultConfig = false;
     settings."github.com".identityFile = "~/.ssh/id_ed25519";
   };
+
+  # invoke compose with both the repo file and our override
+  programs.zsh.shellAliases.dcc =
+    "docker-compose -f docker-compose.yml -f ~/incisive-portal-override.yml";
 
   # Secrets for this VM (edit with: vm secrets incisive). Add only what this
   # guest needs — snowflake per guest.
